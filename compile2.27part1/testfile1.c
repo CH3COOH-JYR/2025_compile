@@ -1,20 +1,27 @@
-const int b=6;
-const int b_1=6,b_2=7,b_3=8;
-const int a[1]={1};
-const int a_1[1]={1},a_2[1]={1},a_3[1]={1};
+#include <stdio.h>
+int getint()
+{
+    int n;
+    scanf("%d", &n);
+    return n;
+}
+const int b = 6;
+const int b_1 = 6, b_2 = 7, b_3 = 8;
+const int a[1] = {1};
+const int a_1[1] = {1}, a_2[1] = {1}, a_3[1] = {1};
 int c;
-int c_1,c_2,c_3;
-int d=6;
-int d_1=6,d_2=7,d_3=8;
-int h[1]={1};
-int h_1[1]={1},h_2[1]={1},h_3[1]={1};
-void func_1(){return;}
-void func_2(int a){return;}
-void func_3(int a,int b,int c){return;}
-int func_4(){return 0;}
-int func_5(int a){return 0;}
-int func_6(int a,int b,int c){return 0;}
-void func_7(){}
+int c_1, c_2, c_3;
+int d = 6;
+int d_1 = 6, d_2 = 7, d_3 = 8;
+int h[1] = {1};
+int h_1[1] = {1}, h_2[1] = {1}, h_3[1] = {1};
+void func_1() { return; }
+void func_2(int a) { return; }
+void func_3(int a, int b, int c) { return; }
+int func_4() { return 0; }
+int func_5(int a) { return 0; }
+int func_6(int a, int b, int c) { return 0; }
+void func_7() {}
 void func_8()
 {
     int aa;
@@ -80,8 +87,8 @@ void func_16()
 }
 void func_17()
 {
-    int aa=1;
-    printf("%d",aa);
+    int aa = 1;
+    printf("%d", aa);
     return;
 }
 void func_18()
@@ -115,12 +122,19 @@ void func_19()
     int aa, bb, cc;
     aa = 1;
     bb = 1;
-    if(aa && bb) cc=1;
-    if(aa || bb) cc=1;
+    if (aa && bb)
+        cc = 1;
+    if (aa || bb)
+        cc = 1;
     return;
 }
 int main()
 {
+    func_2(1);
+    ;
+    func_3(1, 2, 3);
+    h[0] = 2;
+    h[0]=(b)+(d);
     printf("2023202303");
     printf("1");
     printf("1");

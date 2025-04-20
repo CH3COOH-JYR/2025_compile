@@ -1,0 +1,14 @@
+// 常量声明
+const int a = 1;
+
+// 主函数
+int main() {
+    // 变量声明 
+    int c;
+    
+    // 从输入获取值
+    c = getint();
+    
+    // 返回值
+    return c;
+} 

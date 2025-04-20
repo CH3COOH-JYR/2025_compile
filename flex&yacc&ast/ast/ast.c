@@ -160,6 +160,35 @@ int get_node_id() {
     return node_id_counter++;
 }
 
+// 为节点确定颜色（改进视觉效果）
+const char* get_node_color(ASTNodeType type) {
+    switch (type) {
+        case NODE_COMP_UNIT:
+            return "lightblue";
+        case NODE_MAIN_FUNC_DEF:
+            return "salmon";
+        case NODE_FUNC_DEF:
+            return "salmon";
+        case NODE_BLOCK:
+            return "lightgrey";
+        case NODE_STMT:
+            return "skyblue";
+        case NODE_ASSIGN_STMT:
+            return "coral";
+        case NODE_VAR_DECL:
+            return "palegreen";
+        case NODE_CONST_DECL:
+            return "khaki";
+        case NODE_RETURN_STMT:
+            return "skyblue";
+        case NODE_IF_STMT:
+        case NODE_WHILE_STMT:
+            return "skyblue";
+        default:
+            return "white";
+    }
+}
+
 // 添加一个辅助函数用于转义字符串
 char* escape_string(const char* str) {
     if (!str) return NULL;
@@ -199,56 +228,174 @@ char* escape_string(const char* str) {
     return escaped;
 }
 
+// 获取节点边的标签
+char* get_edge_label(ASTNode *parent, int child_index) {
+    static char buffer[64]; // 静态缓冲区
+    
+    // 根据父节点类型和子节点索引确定边标签
+    switch(parent->type) {
+        case NODE_COMP_UNIT:
+            if (child_index == 0) return "decl";
+            else if (parent->children[child_index]->type == NODE_MAIN_FUNC_DEF) 
+                return "main_func_def";
+            else return "func_def";
+        
+        case NODE_FUNC_DEF:
+        case NODE_MAIN_FUNC_DEF:
+            if (child_index == 0) return "return_type";
+            else if (child_index == 1) return "name";
+            else if (parent->children[child_index]->type == NODE_BLOCK) 
+                return "block";
+            else return "params";
+            
+        case NODE_BLOCK:
+            sprintf(buffer, "item%d", child_index);
+            return buffer;
+            
+        case NODE_STMT:
+            if (child_index == 0) {
+                if (parent->children[0]->type == NODE_LVAL) return "assignment";
+                else return "expression";
+            }
+            else return "value";
+            
+        case NODE_ASSIGN_STMT:
+            if (child_index == 0) return "assignment";
+            else if (child_index == 1) {
+                if (parent->children[1]->type == NODE_FUNC_CALL && 
+                    parent->children[1]->children[0]->value.str_value &&
+                    strcmp(parent->children[1]->children[0]->value.str_value, "getint") == 0)
+                    return "is_getint: true";
+                else 
+                    return "value";
+            }
+            
+        case NODE_VAR_DECL:
+        case NODE_CONST_DECL:
+            if (child_index == 0) return "decl";
+            
+        case NODE_VAR_DEF:
+        case NODE_CONST_DEF:
+            if (child_index == 0) return "ident";
+            else if (child_index == 1) {
+                if (parent->children[1]->type == NODE_ARRAY_DIMS)
+                    return "dims";
+                else
+                    return "value";
+            }
+            
+        case NODE_LVAL:
+            return "ident";
+            
+        case NODE_BINARY_EXP:
+            if (child_index == 0) return "left";
+            else return "right";
+            
+        case NODE_RETURN_STMT:
+            return "value";
+            
+        default:
+            return "";
+    }
+}
+
 // 输出节点到dot文件
 void print_node_dot(ASTNode *node, FILE *fp, int node_id) {
     if (!node || !fp) return;
     
     // 节点类型显示名称
     const char *type_str = get_node_type_str(node->type);
+    const char *node_color = get_node_color(node->type);
     
     // 节点标签
     fprintf(fp, "  node%d [label=\"", node_id);
     
-    // 节点类型
+    // 节点类型（主要标签）
     fprintf(fp, "%s", type_str);
     
-    // 节点名称（如果有）
-    if (node->name) {
-        char* escaped_name = escape_string(node->name);
-        fprintf(fp, "\\n%s", escaped_name);
-        free(escaped_name);
-    }
-    
-    // 节点值（根据节点类型添加不同值）
+    // 添加更多有价值的信息，类似于示例图片
     switch (node->type) {
+        case NODE_MAIN_FUNC_DEF:
+            fprintf(fp, "\\nint main()");
+            break;
+        case NODE_VAR_DECL:
+            if (node->children && node->children[0] && 
+                node->children[0]->children && node->children[0]->children[0]) {
+                ASTNode *ident = node->children[0]->children[0];
+                if (ident->type == NODE_IDENT && ident->value.str_value) {
+                    fprintf(fp, "\\nident: %s\\ntype: int", ident->value.str_value);
+                }
+            }
+            break;
+        case NODE_CONST_DECL:
+            if (node->children && node->children[0] && 
+                node->children[0]->children && node->children[0]->children[0]) {
+                ASTNode *ident = node->children[0]->children[0];
+                if (ident->type == NODE_IDENT && ident->value.str_value) {
+                    // 如果有常量值，获取它
+                    if (node->children[0]->children[1] && 
+                        node->children[0]->children[1]->children && 
+                        node->children[0]->children[1]->children[0] &&
+                        node->children[0]->children[1]->children[0]->type == NODE_INT_CONST) {
+                        int value = node->children[0]->children[1]->children[0]->value.int_value;
+                        fprintf(fp, "\\nident: %s\\ntype: int\\nvalue: %d", 
+                                ident->value.str_value, value);
+                    } else {
+                        fprintf(fp, "\\nident: %s\\ntype: int", ident->value.str_value);
+                    }
+                }
+            }
+            break;
+        case NODE_ASSIGN_STMT:
+            fprintf(fp, "\\nkind: ASSIGNMENT");
+            break;
+        case NODE_RETURN_STMT:
+            fprintf(fp, "\\nkind: RETURN");
+            if (node->children && node->children[0] && 
+                node->children[0]->type == NODE_LVAL && 
+                node->children[0]->children[0]->value.str_value) {
+                fprintf(fp, "\\nident: %s", node->children[0]->children[0]->value.str_value);
+            }
+            break;
         case NODE_INT_CONST:
             fprintf(fp, "\\nValue: %d", node->value.int_value);
             break;
-        case NODE_STRING_CONST:
         case NODE_IDENT:
             if (node->value.str_value) {
                 char* escaped_value = escape_string(node->value.str_value);
-                fprintf(fp, "\\nValue: %s", escaped_value);
+                fprintf(fp, "\\nIdent: %s", escaped_value);
                 free(escaped_value);
             }
             break;
-        case NODE_BINARY_EXP:
-            if (node->value.op) {
-                char* escaped_op = escape_string(node->value.op);
-                fprintf(fp, "\\nOp: %s", escaped_op);
-                free(escaped_op);
+        case NODE_FUNC_CALL:
+            if (node->children && node->children[0] && 
+                node->children[0]->type == NODE_IDENT && 
+                node->children[0]->value.str_value) {
+                fprintf(fp, "\\nFunction: %s", node->children[0]->value.str_value);
             }
             break;
         default:
             break;
     }
     
-    fprintf(fp, "\"];\n");
+    fprintf(fp, "\", style=filled, color=%s];\n", node_color);
     
     // 输出子节点并连接边
     for (int i = 0; i < node->child_count; i++) {
+        if (!node->children[i]) continue;
+        
         int child_id = get_node_id();
-        fprintf(fp, "  node%d -> node%d;\n", node_id, child_id);
+        
+        // 获取边标签
+        char *edge_label = get_edge_label(node, i);
+        
+        // 添加带标签的边
+        if (edge_label && strlen(edge_label) > 0) {
+            fprintf(fp, "  node%d -> node%d [label=\"%s\"];\n", node_id, child_id, edge_label);
+        } else {
+            fprintf(fp, "  node%d -> node%d;\n", node_id, child_id);
+        }
+        
         print_node_dot(node->children[i], fp, child_id);
     }
 }
@@ -259,7 +406,8 @@ void print_ast_dot(ASTNode *root, FILE *fp) {
     
     // dot文件头
     fprintf(fp, "digraph AST {\n");
-    fprintf(fp, "  node [shape=box, style=filled, color=lightblue];\n");
+    fprintf(fp, "  node [shape=box, style=filled];\n");
+    fprintf(fp, "  edge [fontsize=10];\n");
     
     // 重置ID计数器
     node_id_counter = 0;

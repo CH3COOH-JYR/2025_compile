@@ -1,0 +1,74 @@
+INTTK int
+IDENFR factorial
+LPARENT (
+INTTK int
+IDENFR n
+RPARENT )
+LBRACE {
+IFTK if
+LPARENT (
+IDENFR n
+LEQ <=
+INTCON 1
+RPARENT )
+LBRACE {
+RETURNTK return
+INTCON 1
+SEMICN ;
+<Stmt>
+RBRACE }
+<Block>
+<Stmt>
+ELSETK else
+LBRACE {
+RETURNTK return
+IDENFR n
+MULT *
+IDENFR factorial
+LPARENT (
+IDENFR n
+MINU -
+INTCON 1
+RPARENT )
+SEMICN ;
+<Stmt>
+RBRACE }
+<Block>
+<Stmt>
+<Stmt>
+RBRACE }
+<Block>
+<FuncDef>
+INTTK int
+MAINTK main
+LPARENT (
+RPARENT )
+LBRACE {
+INTTK int
+IDENFR result
+SEMICN ;
+<VarDecl>
+IDENFR result
+ASSIGN =
+IDENFR factorial
+LPARENT (
+INTCON 5
+RPARENT )
+SEMICN ;
+<Stmt>
+PRINTFTK printf
+LPARENT (
+STRCON "Factorial of 5: %d"
+COMMA ,
+IDENFR result
+RPARENT )
+SEMICN ;
+<Stmt>
+RETURNTK return
+INTCON 0
+SEMICN ;
+<Stmt>
+RBRACE }
+<Block>
+<MainFuncDef>
+<CompUnit>

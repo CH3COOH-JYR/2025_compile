@@ -636,11 +636,11 @@ void Stmt()
 
             if (isArgPlaceholder)
             {
-                string temp_for_print = getNextTempReg();
-                code_emit("LW", temp_for_print, "", arg_spill_addrs[argIdx]);
-                code_emit("PRINTF_ARG", temp_for_print, "", "");
-                argIdx++;
-            }
+                    string temp_for_print = getNextTempReg();
+                    code_emit("LW", temp_for_print, "", arg_spill_addrs[argIdx]);
+                    code_emit("PRINTF_ARG", temp_for_print, "", "");
+                    argIdx++;
+                }
             else
             {
                 string label = "str" + to_string(strCount++);
@@ -667,10 +667,10 @@ void Stmt()
     else if (lookahead().type == "IDENFR" && (lookahead(1).type == "ASSIGN" || lookahead(1).type == "LBRACK"))
     {
         string lvalResult_addr_str_or_reg = LVal();
-        string finalLvalTargetForStore = lvalResult_addr_str_or_reg;
-        string lvalSpillLocForRegisterAddress;
-        bool lvalAddressWasInRegisterAndSpilled = false;
-        int stmt_level_spill_offset_backup = slots_offset;
+            string finalLvalTargetForStore = lvalResult_addr_str_or_reg;
+            string lvalSpillLocForRegisterAddress;
+            bool lvalAddressWasInRegisterAndSpilled = false;
+            int stmt_level_spill_offset_backup = slots_offset;
         bool lvalIsRegister = (!lvalResult_addr_str_or_reg.empty() &&
                                lvalResult_addr_str_or_reg[0] == 't' &&
                                lvalResult_addr_str_or_reg.length() > 1 &&
@@ -692,39 +692,39 @@ void Stmt()
             }
             lvalSpillLocForRegisterAddress = to_string(current_func_max_declared_vars_size + slots_offset) + "($sp)";
 
-            code_emit("SW", lvalResult_addr_str_or_reg, "", lvalSpillLocForRegisterAddress);
-            lvalAddressWasInRegisterAndSpilled = true;
-            slots_offset += SPILL_SLOT_SIZE;
-            slots_max = max(slots_max, slots_offset);
-        }
+                code_emit("SW", lvalResult_addr_str_or_reg, "", lvalSpillLocForRegisterAddress);
+                lvalAddressWasInRegisterAndSpilled = true;
+                slots_offset += SPILL_SLOT_SIZE;
+                slots_max = max(slots_max, slots_offset);
+            }
 
         match("ASSIGN");
-        string rhsReg_val;
-        if (lookahead().type == "GETINTTK")
-        {
-            match("GETINTTK");
-            match("LPARENT");
-            match("RPARENT");
-            rhsReg_val = getNextTempReg();
-            code_emit("GETINT", "", "", rhsReg_val);
-        }
-        else
-        {
+            string rhsReg_val;
+            if (lookahead().type == "GETINTTK")
+            {
+                match("GETINTTK");
+                match("LPARENT");
+                match("RPARENT");
+                rhsReg_val = getNextTempReg();
+                code_emit("GETINT", "", "", rhsReg_val);
+            }
+            else
+            {
             rhsReg_val = Exp();
-        }
+            }
         if (lvalAddressWasInRegisterAndSpilled)
         {
-            string reloadedLvalAddressReg = getNextTempReg();
-            code_emit("LW", reloadedLvalAddressReg, "", lvalSpillLocForRegisterAddress);
+                string reloadedLvalAddressReg = getNextTempReg();
+                code_emit("LW", reloadedLvalAddressReg, "", lvalSpillLocForRegisterAddress);
             finalLvalTargetForStore = reloadedLvalAddressReg;
-        }
-        code_emit("STORE", rhsReg_val, "", finalLvalTargetForStore);
+            }
+            code_emit("STORE", rhsReg_val, "", finalLvalTargetForStore);
         if (lvalAddressWasInRegisterAndSpilled)
         {
             slots_offset = stmt_level_spill_offset_backup;
         }
-        match("SEMICN");
-    }
+            match("SEMICN");
+        }
     else
     {
         if (lookahead().type != "SEMICN")

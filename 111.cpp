@@ -372,30 +372,83 @@ string EqExp()
 
 string LAndExp()
 {
-    string left = EqExp();
+    string left_operand_result = EqExp(); // Evaluate the first operand.
+    // If there are no AND operations, this is the final result.
+    // If there are AND operations, we need a new register to build the chain.
+    string overall_result_reg = left_operand_result; // Default to LHS if no ANDs
+
+    if (lookahead().type == "AND") { // Only allocate new reg if there's an AND
+        overall_result_reg = getNextTempReg();
+        code_emit("MOVE", left_operand_result, "", overall_result_reg);
+    }
+
     while (lookahead().type == "AND")
     {
         match("AND");
-        string right = EqExp();
-        string temp = getNextTempReg();
-        code_emit("AND", left, right, temp);
-        left = temp;
+        string skip_rhs_eval_label = "L_skip_eval_rhs_and_" + to_string(labelCount++);
+        string end_this_and_op_label = "L_end_this_and_op_" + to_string(labelCount++);
+
+        // If current overall_result_reg is 0 (false), the AND expression yields false.
+        // Skip evaluation of the RHS (EqExp) and keep overall_result_reg as 0.
+        code_emit("BEQZ", overall_result_reg, "", skip_rhs_eval_label);
+
+        // If we are here, overall_result_reg was 1 (true). Evaluate RHS.
+        string right_operand_result = EqExp();
+        code_emit("MOVE", right_operand_result, "", overall_result_reg); // Result is now determined by RHS.
+        code_emit("J", "", "", end_this_and_op_label);
+
+        code_emit("LABEL", "", "", skip_rhs_eval_label);
+        // If we jumped here, overall_result_reg was already 0 (from a previous evaluation or the first BEQZ)
+        // and it should remain 0. If it wasn't explicitly set to 0 by a previous step (e.g. if overall_result_reg
+        // was just a value from EqExp that happened to be 0 but not yet a boolean result register),
+        // ensure it's 0. However, given the BEQZ, it must have been 0.
+        // To be absolutely safe, if overall_result_reg wasn't guaranteed to be 0/1 before this,
+        // an explicit LI "0" might be needed. But current structure should maintain 0.
+        // If overall_result_reg came from EqExp and was 0, it's still 0.
+        // If it was already 0 from a prior AND op, it's still 0.
+        // So, no specific code_emit to set it to 0 should be needed here if BEQZ ensures it's 0.
+        // For clarity and robustness, let's ensure it is set to 0 if skipped.
+        code_emit("LI", "0", "", overall_result_reg);
+
+
+        code_emit("LABEL", "", "", end_this_and_op_label);
     }
-    return left;
+    return overall_result_reg;
 }
 
 string LOrExp()
 {
-    string left = LAndExp();
+    string left_operand_result = LAndExp(); // Evaluate the first operand.
+    string overall_result_reg = left_operand_result; // Default to LHS if no ORs
+
+    if (lookahead().type == "OR") { // Only allocate new reg if there's an OR
+        overall_result_reg = getNextTempReg();
+        code_emit("MOVE", left_operand_result, "", overall_result_reg);
+    }
+
     while (lookahead().type == "OR")
     {
         match("OR");
-        string right = LAndExp();
-        string temp = getNextTempReg();
-        code_emit("OR", left, right, temp);
-        left = temp;
+        string skip_rhs_eval_label = "L_skip_eval_rhs_or_" + to_string(labelCount++);
+        string end_this_or_op_label = "L_end_this_or_op_" + to_string(labelCount++);
+
+        // If current overall_result_reg is 1 (true), the OR expression yields true.
+        // Skip evaluation of the RHS (LAndExp) and keep overall_result_reg as 1.
+        code_emit("BNEZ", overall_result_reg, "", skip_rhs_eval_label);
+
+        // If we are here, overall_result_reg was 0 (false). Evaluate RHS.
+        string right_operand_result = LAndExp();
+        code_emit("MOVE", right_operand_result, "", overall_result_reg); // Result is now determined by RHS.
+        code_emit("J", "", "", end_this_or_op_label);
+
+        code_emit("LABEL", "", "", skip_rhs_eval_label);
+        // If we jumped here, overall_result_reg was already 1 (true).
+        // Ensure it's 1.
+        code_emit("LI", "1", "", overall_result_reg);
+
+        code_emit("LABEL", "", "", end_this_or_op_label);
     }
-    return left;
+    return overall_result_reg;
 }
 
 string Cond()
@@ -990,10 +1043,9 @@ void VarDef()
                             match("COMMA");
                         else if (elements_initialized > 0)
                             break;
-                        string element_val_reg = Exp();
 
+                        // 计算目标地址
                         string baseAddrArr_str = get_address(varName);
-
                         string idx_val_reg = getNextTempReg();
                         code_emit("LI", to_string(elements_initialized), "", idx_val_reg);
 
@@ -1010,6 +1062,8 @@ void VarDef()
                         string finalElementAddrReg = getNextTempReg();
                         code_emit("ADD", baseAddrReg_for_calc, offsetBytesReg, finalElementAddrReg);
 
+                        // 在地址计算完成后，再计算要存储的值
+                        string element_val_reg = Exp();
                         code_emit("STORE", element_val_reg, "", finalElementAddrReg);
                         elements_initialized++;
                     } while (lookahead().type == "COMMA");
@@ -1114,8 +1168,9 @@ void ConstDef()
             if (k >= (size_t)sym.arraySize)
                 break;
 
-            string val_to_store_reg = getNextTempReg();
-            code_emit("LI", sym.constValuesList[k], "", val_to_store_reg);
+            // string val_to_store_reg = getNextTempReg(); // Original line, now handled differently
+            code_emit("LI", sym.constValuesList[k], "", TEMP_REG1); // Load const value directly into TEMP_REG1
+            // code_emit("MOVE", val_to_store_reg, "", TEMP_REG1); // No longer needed as loaded directly
 
             string idx_val_reg = getNextTempReg();
             code_emit("LI", to_string(k), "", idx_val_reg);
@@ -1132,7 +1187,8 @@ void ConstDef()
 
             string finalElementAddrReg = getNextTempReg();
             code_emit("ADD", baseAddrReg_for_calc, offsetBytesReg, finalElementAddrReg);
-            code_emit("STORE", val_to_store_reg, "", finalElementAddrReg);
+
+            code_emit("STORE", TEMP_REG1, "", finalElementAddrReg); // Store from the safe temp reg
         }
     }
 }

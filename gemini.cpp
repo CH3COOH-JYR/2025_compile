@@ -7,13 +7,12 @@
 #include <sstream>
 #include <algorithm>
 
-#define TEMP_REG1 "$t8" // Kept from original 111.cpp, reference uses MIPS_TEMP_REG_1
-#define TEMP_REG2 "$t9" // Kept from original 111.cpp, reference uses MIPS_TEMP_REG_2
+#define TEMP_REG1 "$t8" 
+#define TEMP_REG2 "$t9" 
 #define SPILL_SLOT_SIZE 4
 
 using namespace std;
 
-// Renamed keys to keywords
 unordered_map<string, string> keywords = {{"const", "CONSTTK"}, {"int", "INTTK"}, {"break", "BREAKTK"}, {"continue", "CONTINUETK"}, {"if", "IFTK"}, {"else", "ELSETK"}, {"while", "WHILETK"}, {"return", "RETURNTK"}, {"void", "VOIDTK"}, {"main", "MAINTK"}, {"getint", "GETINTTK"}, {"printf", "PRINTFTK"}};
 unordered_map<string, string> symbols = {{"!=", "NEQ"}, {"!", "NOT"}, {"&&", "AND"}, {"||", "OR"}, {"+", "PLUS"}, {"-", "MINU"}, {"*", "MULT"}, {"/", "DIV"}, {"%", "MOD"}, {"<", "LSS"}, {"<=", "LEQ"}, {">", "GRE"}, {">=", "GEQ"}, {"==", "EQL"}, {"=", "ASSIGN"}, {";", "SEMICN"}, {",", "COMMA"}, {"(", "LPARENT"}, {")", "RPARENT"}, {"[", "LBRACK"}, {"]", "RBRACK"}, {"{", "LBRACE"}, {"}", "RBRACE"}};
 
@@ -23,7 +22,6 @@ struct Token
     string value;
 };
 
-// Renamed midcode to Quadruple
 struct Quadruple
 {
     string op;
@@ -41,8 +39,8 @@ struct Symbol
     bool isConst = false;
     bool isFunction = false;
     int arraySize = 1;
-    string value = ""; // For single const value or global init string
-    vector<string> constValuesList; // For const array values
+    string value = ""; 
+    vector<string> constValuesList; 
     Symbol(const string &n, const string &t, int a, bool c, bool b) : name(n), type(t), addr(a), isConst(c), isFunction(b) {}
     Symbol()
     {
@@ -58,27 +56,24 @@ struct Symbol
 
 int labelCount = 0;
 size_t pos = 0;
-string currentFunctionEpilogueLabel = "";      // Renamed from label_current
-vector<Token> tokens;                          //词法分析结果
-vector<string> loopStartLabels;                // Renamed from label_start  //开始标签
-vector<string> loopEndLabels;                  // Renamed from label_end    //结束标签
-vector<Quadruple> intermediateCode;            // Renamed from midcodes     //中间代码
-vector<unordered_map<string, Symbol>> symbolTableStack; // Renamed from symbol_table //符号表
-vector<string> stringLiterals;                 //存储字符串常量
-int tempAddr = 0;                              //记录当前临时变量地址 (Max offset for declared local vars in func)
-int strCount = 0;                              //记录字符串常量个数
+string currentFunctionEpilogueLabel = "";      
+vector<Token> tokens;                          
+vector<string> loopStartLabels;                
+vector<string> loopEndLabels;                  
+vector<Quadruple> intermediateCode;            
+vector<unordered_map<string, Symbol>> symbolTableStack; 
+vector<string> stringLiterals;                 
+int tempAddr = 0;                              
+int strCount = 0;                              
 
-// Spill management variables, renamed and new one added
-int current_spill_slot_offset = 0;             // Renamed from slots_offset //记录溢出槽位偏移量 (within spill area)
-int max_spill_slots_needed_for_function = 0;   // Renamed from slots_max    //记录最大溢出槽位数
+int current_spill_slot_offset = 0;             
+int max_spill_slots_needed_for_function = 0;   
 
-// Declaration for reset_spill_management
 void reset_spill_management() {
     current_spill_slot_offset = 0;
     max_spill_slots_needed_for_function = 0;
 }
 
-// 声明函数 (不声明会有未定义冲突)
 void match(string expectedType);
 void CompUnit();
 void VarDecl();
@@ -92,17 +87,15 @@ string MulExp();
 string UnaryExp();
 string PrimaryExp();
 
-// Updated Const Exp related functions
 string ConstExp();
 string LOrExpForConst();
 string LAndExpForConst();
 string EqExpForConst();
 string RelExpForConst();
-string AddExpForConst_Old(); // Renamed from AddExpForConst
-string MulExpForConst_Old(); // Renamed from MulExpForConst
-string UnaryExpForConst_Old(); // Renamed from UnaryExpForConst
+string AddExpForConst_Old(); 
+string MulExpForConst_Old(); 
+string UnaryExpForConst_Old(); 
 string PrimaryExpForConst();
-
 
 string RelExp();
 string EqExp();
@@ -113,58 +106,56 @@ string LVal(bool *outIsArrayAccessWithoutIndex = nullptr);
 string FuncCall();
 string FuncType();
 
-// 符号表添加符号
 void addSymbol(const string &name, const string &type, bool isConst, bool isFunction, int arraySize = 1)
 {
     Symbol sym;
     sym.name = name;
     sym.type = type;
-    sym.addr = tempAddr; // Assign current offset for local vars
+    sym.addr = tempAddr; 
     sym.isConst = isConst;
     sym.isFunction = isFunction;
     sym.arraySize = arraySize;
-    if (symbolTableStack.size() > 1) // Scope is not global
+    if (symbolTableStack.size() > 1) 
     {
         sym.isGlobal = false;
     }
-    else // Global scope
+    else 
     {
         sym.isGlobal = true;
     }
     symbolTableStack.back()[name] = sym;
-    if (!sym.isGlobal && !isFunction) // Only for local variables/params
+    if (!sym.isGlobal && !isFunction) 
     {
-        tempAddr += arraySize * 4; // Increment offset for next local variable/param
+        tempAddr += arraySize * 4; 
     }
 }
 
-// 符号表查找符号 - Enhanced from lexer_phase2(4).cpp
-bool getConstValueFromSymbolTable(const string &identName, int &outValue) { // Renamed from get_const
+bool getConstValueFromSymbolTable(const string &identName, int &outValue) { 
     for (auto it_s = symbolTableStack.rbegin(); it_s != symbolTableStack.rend(); ++it_s) {
         if (it_s->count(identName)) {
             const Symbol& sym = it_s->at(identName);
             if (sym.isConst) {
                 if (sym.arraySize > 1 && sym.constValuesList.empty() && sym.value.empty()) {
                     cerr << "Error: Array constant '" << identName << "' cannot be used directly as a scalar in a constant expression without an initializer to infer a value." << endl;
-                    return false; // Or exit(1)
+                    exit(1);
                 }
                  if (sym.arraySize > 1 && !sym.constValuesList.empty() && sym.constValuesList[0].find_first_not_of("-0123456789") != string::npos) {
                     cerr << "Error: Array constant '" << identName << "' first element cannot be directly used as a scalar if not a simple number." << endl;
-                    return false; // Or exit(1)
+                    exit(1);
                 }
                 if (sym.arraySize > 1 && sym.constValuesList.empty() && !sym.value.empty() && sym.value.front() == '{') {
                      cerr << "Error: Array constant '" << identName << "' with aggregate initializer cannot be used directly as a scalar." << endl;
-                    return false; // Or exit(1)
+                    exit(1);
                 }
 
                 string valToParse;
-                if (!sym.value.empty() && sym.arraySize == 1) { // Only use sym.value if it's a scalar
+                if (!sym.value.empty() && sym.arraySize == 1) { 
                     valToParse = sym.value;
                 } else if (!sym.constValuesList.empty()) {
-                    valToParse = sym.constValuesList[0]; // Use the first element if it's a list (even for scalar, it's stored there)
+                    valToParse = sym.constValuesList[0]; 
                 } else {
                     cerr << "Error: Constant '" << identName << "' has no value." << endl;
-                    return false; // Or exit(1)
+                    exit(1);
                 }
 
                 try {
@@ -172,21 +163,21 @@ bool getConstValueFromSymbolTable(const string &identName, int &outValue) { // R
                     return true;
                 } catch (const std::exception& e) {
                     cerr << "Error: Invalid numeric value for constant '" << identName << "': " << valToParse << endl;
-                    return false; // Or exit(1)
+                    exit(1);
                 }
-            } else { // Non-const symbol found first
-                // cerr << "Error: Identifier '" << identName << "' is not a constant in constant expression." << endl;
-                return false; // Or exit(1)
+            } else { 
+                cerr << "Error: Identifier '" << identName << "' is not a constant in constant expression." << endl;
+                exit(1);
             }
         }
     }
-    // cerr << "Error: Constant '" << identName << "' not found in constant expression." << endl;
-    return false; // Or exit(1)
+    cerr << "Error: Constant '" << identName << "' not found in constant expression." << endl;
+    exit(1);
+    return false; 
 }
 
 
-// 查找变量地址
-string getVariableAddress(const string &varName) // Renamed from get_address
+string getVariableAddress(const string &varName) 
 {
     for (auto it = symbolTableStack.rbegin(); it != symbolTableStack.rend(); ++it)
     {
@@ -196,39 +187,37 @@ string getVariableAddress(const string &varName) // Renamed from get_address
             const Symbol &sym = scope.at(varName);
             if (sym.isGlobal)
             {
-                return sym.name; // Global variable, use label
+                return sym.name; 
             }
             else
             {
-                // Local variable, offset from $sp
                 return to_string(sym.addr) + "($sp)";
             }
         }
     }
     cerr << "错误：变量 '" << varName << "' 未声明 (getVariableAddress)" << endl;
-    exit(1); // Should be caught by semantic checks earlier ideally
-    return ""; // Should not reach here
+    exit(1); 
+    return ""; 
 }
 
-// 中间代码生成 - Renamed from code_emit to gen
 void gen(const string &op, const string &arg1_param, const string &arg2_param, const string &result_param)
 {
-    auto mapOperand = [&](const string &name) -> string // Capture symbolTableStack
+    auto mapOperand = [&](const string &name) -> string 
     {
         if (name.empty())
             return "";
-        if (name[0] == '$') // Already a MIPS register
+        if (name[0] == '$') 
             return name;
-        if (name.rfind("L_", 0) == 0) // Label
+        if (name.rfind("L_", 0) == 0) 
             return name;
-        if (name.rfind("FUNC_", 0) == 0) // Function Label
+        if (name.rfind("FUNC_", 0) == 0) 
             return name;
-        if (name.find("($sp)") != string::npos) { // Stack address
+        if (name.find("($sp)") != string::npos) { 
             return name;
         }
-        if (isdigit(name[0]) || (name.size() > 1 && name[0] == '-' && isdigit(name[1]))) // Immediate number
+        if (isdigit(name[0]) || (name.size() > 1 && name[0] == '-' && isdigit(name[1]))) 
             return name;
-        if (name.rfind("str", 0) == 0) // String literal label
+        if (name.rfind("str", 0) == 0) 
         {
             bool isStrLabel = true;
             for (size_t i = 3; i < name.size(); ++i)
@@ -242,13 +231,13 @@ void gen(const string &op, const string &arg1_param, const string &arg2_param, c
             if (isStrLabel)
                 return name;
         }
-        // Check if it's a global variable/constant data label
+        
         if (!symbolTableStack.empty() && symbolTableStack[0].count(name)) {
-             const Symbol& sym_global = symbolTableStack[0].at(name); // Corrected variable name
-             if (sym_global.isGlobal && !sym_global.isFunction) return name; // Global data label
+             const Symbol& sym_global = symbolTableStack[0].at(name); 
+             if (sym_global.isGlobal && !sym_global.isFunction) return name; 
         }
-        // Check if it's a temporary variable t0-t7 (map to $t0-$t7)
-        if (name.length() >= 1 && name[0] == 't' && (name.length() > 1 && isdigit(name[1]))) { // Ensure t is followed by a digit
+        
+        if (name.length() >= 1 && name[0] == 't' && (name.length() > 1 && isdigit(name[1]))) { 
             bool all_digits_after_t = true;
             for(size_t k=1; k < name.length(); ++k) {
                 if (!isdigit(name[k])) {
@@ -256,20 +245,17 @@ void gen(const string &op, const string &arg1_param, const string &arg2_param, c
                     break;
                 }
             }
-            if (all_digits_after_t) return "$" + name; // Map tX to $tX
+            if (all_digits_after_t && name != "t8" && name != "t9") return "$" + name; // Ensure not $t8, $t9
         }
-        // If it's a declared local variable name, map to its stack address
+        
         for (auto it_s = symbolTableStack.rbegin(); it_s != symbolTableStack.rend(); ++it_s) {
             if (it_s->count(name)) {
                 const Symbol& sym_s = it_s->at(name);
-                if (!sym_s.isGlobal && !sym_s.isFunction) { // It's a local variable
+                if (!sym_s.isGlobal && !sym_s.isFunction) { 
                     return to_string(sym_s.addr) + "($sp)";
                 }
             }
         }
-        // Default: assume it's a label or needs no mapping, or error
-        // For robustness, if it's not recognized, it might be an error.
-        // However, keeping original behavior for now if it was intended to pass through.
         return name;
     };
 
@@ -304,20 +290,18 @@ void gen(const string &op, const string &arg1_param, const string &arg2_param, c
 }
 
 
-// 查找临时寄存器
 string getNextTempReg()
 {
     static int tempCount = 0;
-    string reg = "t" + to_string(tempCount % 8); // t0-t7 cycle
+    string reg = "t" + to_string(tempCount % 8); 
     tempCount++;
     return reg;
 }
-bool is_temp_register(const string& reg_name) { // Added from reference
+bool is_temp_register(const string& reg_name) { 
     if (reg_name.length() < 2 || reg_name[0] != 't') {
         return false;
     }
-    // Check if it's t0-t7, not $t8, $t9 used as fixed temp by MIPS generator
-    if (reg_name == "t8" || reg_name == "t9") return false; // TEMP_REG1/2 are $t8/$t9
+    if (reg_name == "t8" || reg_name == "t9") return false; 
     for (size_t i = 1; i < reg_name.length(); ++i) {
         if (!isdigit(reg_name[i])) {
             return false;
@@ -326,21 +310,19 @@ bool is_temp_register(const string& reg_name) { // Added from reference
     return true;
 }
 
-// 查找下一个Token
 Token lookahead(int offset = 0)
 {
-    if (pos + offset < tokens.size() && pos + offset >= 0) // Added check for offset >=0
+    if (pos + offset < tokens.size() && pos + offset >= 0) 
         return tokens[pos + offset];
     else
         return Token{"EOF", ""};
 }
 
-// 作用域
-void enterScope(bool isNewFunctionFrame = false) // Modified to match reference
+void enterScope(bool isNewFunctionFrame = false) 
 {
     symbolTableStack.emplace_back();
-    if (isNewFunctionFrame) { // Was: !isGlobal
-        tempAddr = 0; // Reset base offset for declared variables for the new function
+    if (isNewFunctionFrame) { 
+        tempAddr = 0; 
     }
 }
 
@@ -352,18 +334,12 @@ void leaveScope()
     }
 }
 
-// 计算当前作用域中需要的帧大小 - Modified to match reference
 int calculateFrameSize(int maxTempAddrReachedInFunction, int spill_bytes_needed)
 {
     int totalVariableSpace = maxTempAddrReachedInFunction + spill_bytes_needed;
-    // Add space for $ra (4 bytes)
-    // Align to 8 bytes
     int frameSize = (totalVariableSpace + 4 + 7) & ~7;
     return frameSize;
 }
-
-
-// ======================= 后续均为在语法分析的基础上进行中间代码生成 =======================
 
 void match(string expected)
 {
@@ -373,7 +349,7 @@ void match(string expected)
     }
     else
     {
-        cerr << "Syntax error on line (approx token " << pos << "): expected " << expected << " but got "
+        cerr << "Syntax error on token " << pos << ": expected " << expected << " but got "
              << (pos < tokens.size() ? tokens[pos].type : "EOF")
              << (pos < tokens.size() ? " ('" + tokens[pos].value + "')" : "") << endl;
         exit(1);
@@ -382,7 +358,6 @@ void match(string expected)
 
 string RelExp() {
     string left_val_reg = AddExp();
-
     while (lookahead().type == "LSS" || lookahead().type == "GRE" ||
            lookahead().type == "LEQ" || lookahead().type == "GEQ") {
         string op_type = lookahead().type;
@@ -392,9 +367,9 @@ string RelExp() {
         bool left_was_spilled = false;
         int saved_spill_offset_before_lhs_spill = current_spill_slot_offset;
 
-        if (is_temp_register(left_val_reg)) { // Use helper
-            spill_addr_for_left = to_string(tempAddr + current_spill_slot_offset) + "($sp)"; // Use tempAddr
-            gen(op_type == "SW" ? "SW" : "SW", left_val_reg, "", spill_addr_for_left); // Gen takes care of $ prefix
+        if (is_temp_register(left_val_reg)) { 
+            spill_addr_for_left = to_string(tempAddr + current_spill_slot_offset) + "($sp)"; 
+            gen("SW", left_val_reg, "", spill_addr_for_left); 
             left_was_spilled = true;
             current_spill_slot_offset += SPILL_SLOT_SIZE;
             max_spill_slots_needed_for_function = max(max_spill_slots_needed_for_function, current_spill_slot_offset);
@@ -405,7 +380,7 @@ string RelExp() {
         string actual_left_operand_reg = left_val_reg;
         if (left_was_spilled) {
             actual_left_operand_reg = getNextTempReg();
-            gen(op_type == "LW" ? "LW" : "LW", actual_left_operand_reg, "", spill_addr_for_left); // Gen takes care of $ prefix
+            gen("LW", actual_left_operand_reg, "", spill_addr_for_left); 
             current_spill_slot_offset = saved_spill_offset_before_lhs_spill; 
         }
 
@@ -425,9 +400,9 @@ string EqExp() {
         bool left_was_spilled = false;
         int saved_spill_offset_before_lhs_spill = current_spill_slot_offset;
 
-        if (is_temp_register(left_val_reg)) { // Use helper
-            spill_addr_for_left = to_string(tempAddr + current_spill_slot_offset) + "($sp)"; // Use tempAddr
-            gen(op_type == "SW" ? "SW" : "SW", left_val_reg, "", spill_addr_for_left);
+        if (is_temp_register(left_val_reg)) { 
+            spill_addr_for_left = to_string(tempAddr + current_spill_slot_offset) + "($sp)"; 
+            gen("SW", left_val_reg, "", spill_addr_for_left);
             left_was_spilled = true;
             current_spill_slot_offset += SPILL_SLOT_SIZE;
             max_spill_slots_needed_for_function = max(max_spill_slots_needed_for_function, current_spill_slot_offset);
@@ -437,7 +412,7 @@ string EqExp() {
         string actual_left_operand_reg = left_val_reg;
         if (left_was_spilled) {
             actual_left_operand_reg = getNextTempReg();
-            gen(op_type == "LW" ? "LW" : "LW", actual_left_operand_reg, "", spill_addr_for_left);
+            gen("LW", actual_left_operand_reg, "", spill_addr_for_left);
             current_spill_slot_offset = saved_spill_offset_before_lhs_spill;
         }
         string temp_res_reg = getNextTempReg();
@@ -447,8 +422,6 @@ string EqExp() {
     return left_val_reg;
 }
 
-// LAndExp and LOrExp from 111.cpp are kept as their logic is sound
-// given that EqExp/RelExp already produce 0/1.
 string LAndExp()
 {
     string left_operand_result = EqExp(); 
@@ -473,7 +446,6 @@ string LAndExp()
 
         gen("LABEL", "", "", skip_rhs_eval_label);
         gen("LI", "0", "", overall_result_reg);
-
 
         gen("LABEL", "", "", end_this_and_op_label);
     }
@@ -510,10 +482,9 @@ string LOrExp()
     return overall_result_reg;
 }
 
-
 string Cond()
 {
-    string condReg = LOrExp(); // LOrExp already returns 0 or 1
+    string condReg = LOrExp(); 
     return condReg;
 }
 
@@ -536,8 +507,8 @@ vector<pair<string, bool>> parseFormatString(const string &fmt)
             case '\\':
                 processedPart += '\\';
                 break;
-            default: // Keep unrecognized escapes like \q as is
-                processedPart += fmt[i + 1]; // Reference behavior
+            default: 
+                processedPart += fmt[i+1]; 
             }
             i++;
         }
@@ -567,7 +538,7 @@ void Stmt()
 {
     if (lookahead().type == "LBRACE")
     {
-        enterScope(false); // Block is not necessarily a new function frame
+        enterScope(false); 
         Block();
         leaveScope();
     }
@@ -600,8 +571,8 @@ void Stmt()
         string startLabel = "L_while_" + to_string(labelCount++);
         string endLabel = "L_endwhile_" + to_string(labelCount++);
 
-        loopStartLabels.push_back(startLabel); // Use renamed global
-        loopEndLabels.push_back(endLabel);     // Use renamed global
+        loopStartLabels.push_back(startLabel); 
+        loopEndLabels.push_back(endLabel);     
 
         gen("LABEL", "", "", startLabel);
         match("LPARENT");
@@ -620,7 +591,7 @@ void Stmt()
     else if (lookahead().type == "BREAKTK")
     {
         match("BREAKTK");
-        if (loopEndLabels.empty()) { // Check from reference
+        if (loopEndLabels.empty()) { 
             cerr << "Syntax error: 'break' not in a loop." << endl;
             exit(1);
         }
@@ -630,7 +601,7 @@ void Stmt()
     else if (lookahead().type == "CONTINUETK")
     {
         match("CONTINUETK");
-         if (loopStartLabels.empty()) { // Check from reference
+         if (loopStartLabels.empty()) { 
             cerr << "Syntax error: 'continue' not in a loop." << endl;
             exit(1);
         }
@@ -645,7 +616,7 @@ void Stmt()
             string retReg = Exp();
             gen("MOVE", retReg, "", "$v0");
         }
-        if (!currentFunctionEpilogueLabel.empty()) // Use renamed global
+        if (!currentFunctionEpilogueLabel.empty()) 
         {
             gen("J", "", "", currentFunctionEpilogueLabel);
         }
@@ -660,7 +631,7 @@ void Stmt()
         {
             rawFormatStr = rawFormatStr.substr(1, rawFormatStr.length() - 2);
         }
-        else { // From reference
+        else { 
             cerr << "Error: Malformed string literal for printf: " << rawFormatStr << endl;
             exit(1);
         }
@@ -669,7 +640,7 @@ void Stmt()
         vector<string> arg_spill_addrs;
         int saved_spill_offset_for_printf = current_spill_slot_offset;
 
-        auto calculate_printf_arg_spill_address = [&]() -> string // Use tempAddr
+        auto calculate_printf_arg_spill_address = [&]() -> string 
         {
             int total_offset = tempAddr + current_spill_slot_offset;
             string spill_addr = to_string(total_offset) + "($sp)";
@@ -698,7 +669,7 @@ void Stmt()
 
             if (isArgPlaceholder)
             {
-                if (argIdx >= arg_spill_addrs.size()) { // From reference
+                if (argIdx >= arg_spill_addrs.size()) { 
                     cerr << "Error: Not enough arguments provided to printf for format string." << endl;
                     exit(1);
                 }
@@ -711,19 +682,19 @@ void Stmt()
             {
                 string label = "str" + to_string(strCount++);
                 string mipsEscapedPart;
-                for (char c : part_content) // MIPS specific escapes
+                for (char c : part_content) 
                 {
                     if (c == '\n') mipsEscapedPart += "\\n";
                     else if (c == '\t') mipsEscapedPart += "\\t";
-                    else if (c == '"') mipsEscapedPart += "\\\""; // escaped for MIPS .asciiz
-                    else if (c == '\\') mipsEscapedPart += "\\\\"; // escaped for MIPS .asciiz
+                    else if (c == '"') mipsEscapedPart += "\\\""; 
+                    else if (c == '\\') mipsEscapedPart += "\\\\"; 
                     else mipsEscapedPart += c;
                 }
                 stringLiterals.push_back("\"" + mipsEscapedPart + "\"");
                 gen("PRINTF_STR", label, "", "");
             }
         }
-        current_spill_slot_offset = saved_spill_offset_for_printf; // Restore spill state
+        current_spill_slot_offset = saved_spill_offset_for_printf; 
     }
     else if (lookahead().type == "IDENFR" && (lookahead(1).type == "ASSIGN" || lookahead(1).type == "LBRACK"))
     {
@@ -731,18 +702,17 @@ void Stmt()
         string finalLvalTargetForStore = lvalResult_addr_str_or_reg;
         string lvalSpillLocForRegisterAddress;
         bool lvalAddressWasInRegisterAndSpilled = false;
-        int stmt_level_spill_offset_backup = current_spill_slot_offset; // Use renamed var
+        int stmt_level_spill_offset_backup = current_spill_slot_offset; 
 
-        bool lvalIsRegister = is_temp_register(lvalResult_addr_str_or_reg); // Use helper
+        bool lvalIsRegister = is_temp_register(lvalResult_addr_str_or_reg); 
 
         if (lvalIsRegister)
         {
-            // Use tempAddr for spill calculation
             lvalSpillLocForRegisterAddress = to_string(tempAddr + current_spill_slot_offset) + "($sp)";
             gen("SW", lvalResult_addr_str_or_reg, "", lvalSpillLocForRegisterAddress);
             lvalAddressWasInRegisterAndSpilled = true;
-            current_spill_slot_offset += SPILL_SLOT_SIZE; // Use renamed var
-            max_spill_slots_needed_for_function = max(max_spill_slots_needed_for_function, current_spill_slot_offset); // Use renamed var
+            current_spill_slot_offset += SPILL_SLOT_SIZE; 
+            max_spill_slots_needed_for_function = max(max_spill_slots_needed_for_function, current_spill_slot_offset); 
         }
 
         match("ASSIGN");
@@ -768,7 +738,7 @@ void Stmt()
         gen("STORE", rhsReg_val, "", finalLvalTargetForStore);
         if (lvalAddressWasInRegisterAndSpilled)
         {
-            current_spill_slot_offset = stmt_level_spill_offset_backup; // Use renamed var
+            current_spill_slot_offset = stmt_level_spill_offset_backup; 
         }
         match("SEMICN");
     }
@@ -776,7 +746,7 @@ void Stmt()
     {
         if (lookahead().type != "SEMICN")
         {
-            Exp(); // Exp for side effects
+            Exp(); 
         }
         match("SEMICN");
     }
@@ -786,7 +756,7 @@ vector<string> ArgList()
 {
     vector<string> arg_spill_locations;
 
-    auto calculate_current_spill_address = [&]() -> string { // Use tempAddr
+    auto calculate_current_spill_address = [&]() -> string { 
         return to_string(tempAddr + current_spill_slot_offset) + "($sp)";
     };
     string temp_reg_arg = Exp();
@@ -823,32 +793,15 @@ string FuncCall() {
     match("RPARENT");
     int num_total_args = arg_spill_addrs_on_caller_stack.size();
 
-    // Load first 4 args into $a0-$a3 from their spill locations
     for (int i = 0; i < min(4, num_total_args); ++i) {
         gen("LW", "$a" + to_string(i), "", arg_spill_addrs_on_caller_stack[i]);
     }
 
-    // For args > 4, push them onto the stack.
-    // This needs careful offset adjustment if PUSH changes $sp.
-    // The reference lexer_phase2(4).cpp has this adjustment.
     int bytes_pushed_for_stack_args = 0;
-    for (int i = num_total_args - 1; i >= 4; --i) { // Iterate backwards to push in correct order
+    for (int i = num_total_args - 1; i >= 4; --i) { 
         string temp_for_push = getNextTempReg();
         string original_spill_addr_str = arg_spill_addrs_on_caller_stack[i];
-
-        // The following logic is to adjust the load offset if $sp has changed due to prior PUSH ops
-        // This is critical if PUSH actually modifies $sp before all stack args are loaded.
-        // However, our PUSH op implies 'addiu $sp, $sp, -4; sw reg, 0($sp)'
-        // The spill locations in arg_spill_addrs_on_caller_stack are relative to $sp *before* any of these PUSHes.
-        // So, we load from the original spill location, then PUSH.
-        // The reference compiler's adjustment logic seems more for a scenario where spill locations are calculated
-        // differently or PUSH operations are interleaved with calculations differently.
-        // Let's try the simpler approach first: LW from original spill, then PUSH.
-        // If values are spilled at offsets X, Y, Z from original $sp.
-        // LW $t, X($sp) -> PUSH $t  ($sp becomes $sp-4)
-        // LW $t, Y($sp) -> PUSH $t  ($sp becomes $sp-4 again from its new value)
-        // This is incorrect. The LW for Y needs to be from Y($sp_original) = (Y+4)($sp_current_after_1st_push)
-        // The reference logic:
+        
         string adjusted_spill_addr_for_lw_str;
         size_t paren_pos = original_spill_addr_str.find('(');
         if (paren_pos == string::npos || original_spill_addr_str.back() != ')' ||
@@ -864,22 +817,17 @@ string FuncCall() {
             cerr << "Critical Error: Failed to parse offset from spill address string '" << original_spill_addr_str << "' in FuncCall: " << e.what() << endl;
             exit(1);
         }
-        // The original_offset_val is from $sp *before* any of these PUSHes.
-        // bytes_pushed_for_stack_args is how much $sp has already been decremented by PUSHes *in this loop*.
-        // So, the effective address from current $sp is original_offset_val + bytes_pushed_for_stack_args.
+        
         int adjusted_offset_for_lw = original_offset_val + bytes_pushed_for_stack_args;
         adjusted_spill_addr_for_lw_str = to_string(adjusted_offset_for_lw) + "($sp)";
 
-
         gen("LW", temp_for_push, "", adjusted_spill_addr_for_lw_str);
-        gen("PUSH", temp_for_push, "", ""); // PUSH decrements $sp then stores
-        bytes_pushed_for_stack_args += SPILL_SLOT_SIZE; // Track $sp change
+        gen("PUSH", temp_for_push, "", ""); 
+        bytes_pushed_for_stack_args += SPILL_SLOT_SIZE; 
     }
-
 
     string returnReg = "";
     bool is_void_func = false;
-    // Look in global symbol table for function type
     if (!symbolTableStack.empty() && symbolTableStack[0].count(funcName)) {
         if (symbolTableStack[0][funcName].type == "void") {
             is_void_func = true;
@@ -891,19 +839,15 @@ string FuncCall() {
 
     gen("CALL", funcName, "", returnReg);
 
-    // Clean up stack space used for arguments passed on stack (args > 4)
-    int num_stack_args_passed = max(0, num_total_args - 4);
-    if (num_stack_args_passed > 0) {
-        // bytes_pushed_for_stack_args is already the total for these
+    if (bytes_pushed_for_stack_args > 0) {
         gen("ADDIU", "$sp", to_string(bytes_pushed_for_stack_args), "$sp");
     }
 
-    current_spill_slot_offset = saved_caller_spill_offset; // Restore caller's spill state
+    current_spill_slot_offset = saved_caller_spill_offset; 
 
     return returnReg;
 }
 
-// InitVal is for runtime initialization, not const. It uses Exp().
 void InitVal()
 {
     if (lookahead().type == "LBRACE")
@@ -911,22 +855,21 @@ void InitVal()
         match("LBRACE");
         if (lookahead().type != "RBRACE")
         {
-            InitVal(); // Calls Exp() internally
+            InitVal(); 
             while (lookahead().type == "COMMA")
             {
                 match("COMMA");
-                InitVal(); // Calls Exp() internally
+                InitVal(); 
             }
         }
         match("RBRACE");
     }
     else
     {
-        Exp(); // Base case is a single expression
+        Exp(); 
     }
 }
 
-// === Start of new ConstExp related functions (from lexer_phase2(4).cpp model) ===
 string PrimaryExpForConst() {
     if (lookahead().type == "LPARENT") {
         match("LPARENT");
@@ -941,11 +884,11 @@ string PrimaryExpForConst() {
         string identName = lookahead().value;
         match("IDENFR");
         int constVal;
-        if (getConstValueFromSymbolTable(identName, constVal)) { // Use renamed func
+        if (getConstValueFromSymbolTable(identName, constVal)) { 
             return to_string(constVal);
         } else {
-            cerr << "Error: Identifier '" << identName << "' is not a usable constant or not found in constant expression (PrimaryExpForConst)." << endl;
-            exit(1);
+            // Error already printed by getConstValueFromSymbolTable if not found or not const
+            exit(1); 
         }
     } else {
         cerr << "Error: Invalid token '" << lookahead().type << "' in PrimaryExpForConst: " << lookahead().value << endl;
@@ -953,7 +896,7 @@ string PrimaryExpForConst() {
     }
 }
 
-string UnaryExpForConst_Old() { // Renamed from UnaryExpForConst
+string UnaryExpForConst_Old() { 
     if (lookahead().type == "PLUS" || lookahead().type == "MINU" || lookahead().type == "NOT") {
         string op_type = lookahead().type; 
         match(op_type);
@@ -974,7 +917,7 @@ string UnaryExpForConst_Old() { // Renamed from UnaryExpForConst
     return PrimaryExpForConst(); 
 }
 
-string MulExpForConst_Old() { // Renamed from MulExpForConst
+string MulExpForConst_Old() { 
     string left = UnaryExpForConst_Old();
     while (lookahead().type == "MULT" || lookahead().type == "DIV" || lookahead().type == "MOD") {
         string op = lookahead().type;
@@ -990,7 +933,7 @@ string MulExpForConst_Old() { // Renamed from MulExpForConst
             else if (op == "DIV") {
                 if (rightVal == 0) { cerr << "Error: Division by zero in constant expression." << endl; exit(1); }
                 left = to_string(leftVal / rightVal);
-            } else { // MOD
+            } else { 
                 if (rightVal == 0) { cerr << "Error: Modulo by zero in constant expression." << endl; exit(1); }
                 left = to_string(leftVal % rightVal);
             }
@@ -1002,7 +945,7 @@ string MulExpForConst_Old() { // Renamed from MulExpForConst
     return left;
 }
 
-string AddExpForConst_Old() { // Renamed from AddExpForConst
+string AddExpForConst_Old() { 
     string left = MulExpForConst_Old();
     while (lookahead().type == "PLUS" || lookahead().type == "MINU") {
         string op = lookahead().type;
@@ -1088,12 +1031,11 @@ string LOrExpForConst() {
     return to_string(lval); 
 }
 
-string ConstExp() { // Top-level const expression parser
+string ConstExp() { 
     return LOrExpForConst();
 }
-// === End of new ConstExp related functions ===
 
-vector<string> ConstInitVal() // This is for parsing constant initializers
+vector<string> ConstInitVal() 
 {
     vector<string> values;
     if (lookahead().type == "LBRACE")
@@ -1101,23 +1043,22 @@ vector<string> ConstInitVal() // This is for parsing constant initializers
         match("LBRACE");
         if (lookahead().type != "RBRACE")
         {
-            values.push_back(ConstExp()); // Use the new ConstExp
+            values.push_back(ConstExp()); 
 
             while (lookahead().type == "COMMA")
             {
                 match("COMMA");
-                values.push_back(ConstExp()); // Use the new ConstExp
+                values.push_back(ConstExp()); 
             }
         }
         match("RBRACE");
     }
     else
     {
-        values.push_back(ConstExp()); // Use the new ConstExp
+        values.push_back(ConstExp()); 
     }
     return values;
 }
-
 
 void VarDef()
 {
@@ -1127,20 +1068,20 @@ void VarDef()
     if (lookahead().type == "LBRACK")
     {
         match("LBRACK");
-        string sizeStr = ConstExp(); // Use new ConstExp
-        try { // From reference
+        string sizeStr = ConstExp(); 
+        try { 
             arraySize = stoi(sizeStr);
         } catch (const std::exception& e) {
             cerr << "Error: Invalid array size in constant expression for '" << varName << "': " << sizeStr << endl;
             exit(1);
         }
-        if (arraySize < 0 ) { // From reference
+        if (arraySize < 0 ) { 
             cerr << "Error: Array size cannot be negative for '" << varName << "'." << endl; exit(1);
         }
         match("RBRACK");
     }
     addSymbol(varName, "int", false, false, arraySize);
-    Symbol &sym_ref = symbolTableStack.back()[varName]; // Safe after addSymbol
+    Symbol &sym_ref = symbolTableStack.back()[varName]; 
 
     if (lookahead().type == "ASSIGN")
     {
@@ -1149,15 +1090,15 @@ void VarDef()
         {
             if (arraySize == 1)
             {
-                if (lookahead().type == "LBRACE") { // From reference
+                if (lookahead().type == "LBRACE") { 
                     cerr << "错误：全局标量变量初始化 '" << varName << "' 不能使用 '{...}'" << endl;
                     exit(1);
                 }
-                sym_ref.value = ConstExp(); // Use new ConstExp
+                sym_ref.value = ConstExp(); 
             }
-            else // Global Array
+            else 
             {
-                 if (lookahead().type != "LBRACE") { // From reference
+                 if (lookahead().type != "LBRACE") { 
                     cerr << "错误：全局数组初始化 '" << varName << "' 必须使用 '{...}'" << endl;
                     exit(1);
                 }
@@ -1166,16 +1107,16 @@ void VarDef()
                 int init_count = 0;
                 if (lookahead().type != "RBRACE")
                 {
-                    string first_val = ConstExp(); // Use new ConstExp
+                    string first_val = ConstExp(); 
                     sym_ref.value += first_val;
                     init_count++;
                     while (lookahead().type == "COMMA")
                     {
                         match("COMMA");
-                        string next_val = ConstExp(); // Use new ConstExp
+                        string next_val = ConstExp(); 
                         sym_ref.value += "," + next_val;
                         init_count++;
-                        if (init_count > arraySize && arraySize > 0) { // Check from reference (allow more if arraySize is 0 initially)
+                        if (init_count > arraySize && arraySize > 0) { 
                             cerr << "Error: Too many initializers for global array " << varName << endl;
                             exit(1);
                         }
@@ -1185,60 +1126,62 @@ void VarDef()
                 match("RBRACE");
             }
         }
-        else // Local Variable or Array
+        else 
         {
-            if (arraySize == 1 && lookahead().type == "LBRACE") { // From reference
+            if (arraySize == 1 && lookahead().type == "LBRACE") { 
                  cerr << "错误：局部标量变量初始化 '" << varName << "' 不应使用 '{...}' " << endl;
                  exit(1);
             }
-            if (arraySize > 1 && lookahead().type == "LBRACE") // Local Array with initializer list
+            if (arraySize > 1 && lookahead().type == "LBRACE") 
             {
                 match("LBRACE");
                 int elements_initialized = 0;
                 if (lookahead().type != "RBRACE")
                 {
-                    // Corrected loop structure from reference model
-                    string element_val_reg = Exp();
-                    // Store element_val_reg at index elements_initialized
-                    string baseAddrArr_str = getVariableAddress(varName);
-                    string idx_val_reg = getNextTempReg();
-                    gen("LI", to_string(elements_initialized), "", idx_val_reg);
-                    string offsetBytesReg = getNextTempReg();
-                    string four_val_reg = getNextTempReg();
-                    gen("LI", "4", "", four_val_reg);
-                    gen("MUL", idx_val_reg, four_val_reg, offsetBytesReg);
-                    string baseAddrReg_for_calc = getNextTempReg();
-                    size_t sp_pos = baseAddrArr_str.find("($sp)");
-                    string offset_from_sp_str = baseAddrArr_str.substr(0, sp_pos);
-                    gen("ADDIU", "$sp", offset_from_sp_str, baseAddrReg_for_calc);
-                    string finalElementAddrReg = getNextTempReg();
-                    gen("ADD", baseAddrReg_for_calc, offsetBytesReg, finalElementAddrReg);
-                    gen("STORE", element_val_reg, "", finalElementAddrReg);
+                    string element_val_reg_init = Exp();
+                    string baseAddrArr_str_init = getVariableAddress(varName);
+                    string idx_val_reg_init = getNextTempReg();
+                    gen("LI", to_string(elements_initialized), "", idx_val_reg_init);
+                    string offsetBytesReg_init = getNextTempReg();
+                    string four_val_reg_init = getNextTempReg(); // Keep separate four_val_reg per init for safety
+                    gen("LI", "4", "", four_val_reg_init);
+                    gen("MUL", idx_val_reg_init, four_val_reg_init, offsetBytesReg_init);
+                    string baseAddrReg_for_calc_init = getNextTempReg();
+                    size_t sp_pos_init = baseAddrArr_str_init.find("($sp)");
+                    string offset_from_sp_str_init = baseAddrArr_str_init.substr(0, sp_pos_init);
+                    gen("ADDIU", "$sp", offset_from_sp_str_init, baseAddrReg_for_calc_init);
+                    string finalElementAddrReg_init = getNextTempReg();
+                    gen("ADD", baseAddrReg_for_calc_init, offsetBytesReg_init, finalElementAddrReg_init);
+                    gen("STORE", element_val_reg_init, "", finalElementAddrReg_init);
                     elements_initialized++;
 
                     while(lookahead().type == "COMMA") {
                         match("COMMA");
-                        if (elements_initialized >= arraySize && arraySize > 0) {
+                        if (elements_initialized >= arraySize && arraySize > 0) { // Check before Exp
                              cerr << "Error: Too many initializers for local array " << varName << endl;
                              exit(1);
                         }
-                        element_val_reg = Exp();
-                        // Store element_val_reg at index elements_initialized (repeat store logic)
-                        idx_val_reg = getNextTempReg(); // Recalculate for new index
-                        gen("LI", to_string(elements_initialized), "", idx_val_reg);
-                        offsetBytesReg = getNextTempReg(); // Recalculate
-                        // four_val_reg already set
-                        gen("MUL", idx_val_reg, four_val_reg, offsetBytesReg);
-                        // baseAddrReg_for_calc already set if base doesn't change, $sp too
-                        finalElementAddrReg = getNextTempReg(); // Recalculate
-                        gen("ADD", baseAddrReg_for_calc, offsetBytesReg, finalElementAddrReg);
-                        gen("STORE", element_val_reg, "", finalElementAddrReg);
+                        string element_val_reg_loop = Exp();
+                        string baseAddrArr_str_loop = getVariableAddress(varName); // Redundant if base offset fixed, but safe
+                        string idx_val_reg_loop = getNextTempReg(); 
+                        gen("LI", to_string(elements_initialized), "", idx_val_reg_loop);
+                        string offsetBytesReg_loop = getNextTempReg(); 
+                        string four_val_reg_loop = getNextTempReg(); // New four_val_reg
+                        gen("LI", "4", "", four_val_reg_loop);
+                        gen("MUL", idx_val_reg_loop, four_val_reg_loop, offsetBytesReg_loop);
+                        string baseAddrReg_for_calc_loop = getNextTempReg(); 
+                        size_t sp_pos_loop = baseAddrArr_str_loop.find("($sp)");
+                        string offset_from_sp_str_loop = baseAddrArr_str_loop.substr(0, sp_pos_loop);
+                        gen("ADDIU", "$sp", offset_from_sp_str_loop, baseAddrReg_for_calc_loop);
+                        string finalElementAddrReg_loop = getNextTempReg(); 
+                        gen("ADD", baseAddrReg_for_calc_loop, offsetBytesReg_loop, finalElementAddrReg_loop);
+                        gen("STORE", element_val_reg_loop, "", finalElementAddrReg_loop);
                         elements_initialized++;
                     }
                 }
                 match("RBRACE");
             }
-            else // Local Scalar or (non-standard) local array init with single Exp
+            else 
             {
                 string valReg;
                 if (lookahead().type == "GETINTTK")
@@ -1257,10 +1200,6 @@ void VarDef()
                 gen("STORE", valReg, "", varAddr);
             }
         }
-    }
-    else
-    {
-        // No initializer
     }
 }
 
@@ -1286,27 +1225,26 @@ void ConstDef() {
     if (lookahead().type == "LBRACK") {
         isArray = true;
         match("LBRACK");
-        string sizeStr = ConstExp(); // Use new ConstExp
+        string sizeStr = ConstExp(); 
          try {
             declaredArraySize = stoi(sizeStr);
         } catch (const std::exception& e) {
             cerr << "Error: Invalid array size in constant expression for '" << constName << "': " << sizeStr << endl;
             exit(1);
         }
-        if (declaredArraySize < 0) { // From reference
+        if (declaredArraySize < 0) { 
             cerr << "Error: Array size cannot be negative for const '" << constName << "'." << endl; exit(1);
         }
         match("RBRACK");
     }
 
     match("ASSIGN");
-    vector<string> initValues = ConstInitVal(); // Uses new ConstExp
+    vector<string> initValues = ConstInitVal(); 
 
     int finalArraySize;
     if (isArray) {
         finalArraySize = declaredArraySize;
-        // Error check from reference
-        if (initValues.size() > (size_t)finalArraySize && finalArraySize > 0 ) { // if finalArraySize is 0, it's okay if initValues is also effectively empty for {}
+        if (initValues.size() > (size_t)finalArraySize && finalArraySize > 0 ) { 
             cerr << "Error: Too many initializers for constant array '" << constName << "' (expected " << finalArraySize << ", got " << initValues.size() << ")." << endl;
             exit(1);
         }
@@ -1320,7 +1258,7 @@ void ConstDef() {
                 initValues.push_back("0");
             }
         }
-    } else { // Scalar const
+    } else { 
         if (initValues.size() != 1) {
             cerr << "Error: Scalar constant '" << constName << "' must be initialized with a single constant expression." << endl;
             exit(1);
@@ -1335,13 +1273,12 @@ void ConstDef() {
         sym.value = initValues[0]; 
     }
 
-    // Initialize local const array/scalar on stack
     if (!sym.isGlobal && sym.arraySize > 0) { 
         string baseAddrArr_str = getVariableAddress(constName);
         for (size_t k = 0; k < sym.constValuesList.size(); ++k) {
             if (k >= (size_t)sym.arraySize && sym.arraySize > 0) break; 
 
-            string val_to_store_reg = TEMP_REG1; // Use fixed temp for safety here, original used getNextTempReg
+            string val_to_store_reg = TEMP_REG1; 
             gen("LI", sym.constValuesList[k], "", val_to_store_reg);
 
             string idx_val_reg = getNextTempReg();
@@ -1421,39 +1358,33 @@ void MainFuncDef() {
     string func_name_for_label = "main";
     symbolTableStack[0][func_name_for_label] = Symbol(func_name_for_label, "int", 0, false, true);
 
-    enterScope(true); // true for new function frame
-    reset_spill_management(); // Reset spill counts
+    enterScope(true); 
+    reset_spill_management(); 
 
     string oldEpilogueLabel = currentFunctionEpilogueLabel;
     currentFunctionEpilogueLabel = "L_epilogue_FUNC_main";
 
     gen("LABEL", "", "", "FUNC_main");
     size_t prologueInsertionPoint = intermediateCode.size();
-    intermediateCode.push_back({"NOP_PROLOGUE_PLACEHOLDER", "", "", ""}); // Placeholder
+    intermediateCode.push_back({"NOP_PROLOGUE_PLACEHOLDER", "", "", ""}); 
 
-    Block(); // Parse block, tempAddr will be updated
-
-    // Frame size calculation uses tempAddr (max offset of declared vars) and max_spill_slots
+    Block(); 
     int frameSize = calculateFrameSize(tempAddr, max_spill_slots_needed_for_function);
 
     vector<Quadruple> prologueQuads;
     prologueQuads.push_back({"ADDIU", "$sp", "-" + to_string(frameSize), "$sp"});
-    prologueQuads.push_back({"SW", "$ra", "", to_string(frameSize - 4) + "($sp)"}); // $ra at top of usable frame
+    prologueQuads.push_back({"SW", "$ra", "", to_string(frameSize - 4) + "($sp)"}); 
 
-    // Insert prologue
     if (prologueInsertionPoint < intermediateCode.size() && intermediateCode[prologueInsertionPoint].op == "NOP_PROLOGUE_PLACEHOLDER") {
         intermediateCode.erase(intermediateCode.begin() + prologueInsertionPoint);
         intermediateCode.insert(intermediateCode.begin() + prologueInsertionPoint,
                                 prologueQuads.begin(), prologueQuads.end());
     } else {
-         cerr << "Warning: Prologue placeholder issue for main." << endl; // Should not happen
          intermediateCode.insert(intermediateCode.begin() + prologueInsertionPoint, prologueQuads.begin(), prologueQuads.end());
     }
 
-    // Implicit return handling (from reference)
     bool explicitReturnExists = false;
     if (!intermediateCode.empty()) {
-        // Search backwards from the end, but stop if we hit the function's own label again (excluding the entry point)
         long func_entry_label_pos = -1;
         for(long k=0; k < (long)intermediateCode.size(); ++k) {
             if(intermediateCode[k].op == "LABEL" && intermediateCode[k].result == "FUNC_main") {
@@ -1462,7 +1393,8 @@ void MainFuncDef() {
             }
         }
 
-        for (long k_loop = intermediateCode.size() - 1; k_loop >=0 && k_loop > func_entry_label_pos ; --k_loop) {
+        for (long k_loop = intermediateCode.size() - 1; k_loop >=0 ; --k_loop) {
+            if (func_entry_label_pos != -1 && k_loop <= func_entry_label_pos) break; 
             const auto& quad = intermediateCode[k_loop];
             if (quad.op == "J" && quad.result == currentFunctionEpilogueLabel) {
                 explicitReturnExists = true;
@@ -1475,19 +1407,16 @@ void MainFuncDef() {
         bool alreadyJumpingToEpilogue = false;
         if (!intermediateCode.empty()) {
             const auto& last_quad = intermediateCode.back();
-            // Check if the last instruction before potential epilogue label is already a jump to it
             string lastMeaningfulOpTarget = "";
+             // Check if last instruction before current position (where epilogue label would be added) is a jump to it
             if (last_quad.op == "J") lastMeaningfulOpTarget = last_quad.result;
-            else if (last_quad.op == "LABEL" && last_quad.result == currentFunctionEpilogueLabel && intermediateCode.size() > 1) {
-                 const auto& second_last_quad = intermediateCode[intermediateCode.size()-2];
-                 if (second_last_quad.op == "J") lastMeaningfulOpTarget = second_last_quad.result;
-            }
+            
             if (lastMeaningfulOpTarget == currentFunctionEpilogueLabel) {
                 alreadyJumpingToEpilogue = true;
             }
         }
         if (!alreadyJumpingToEpilogue) {
-            gen("LI", "0", "", "$v0"); // Default return 0 for main
+            gen("LI", "0", "", "$v0"); 
             gen("J", "", "", currentFunctionEpilogueLabel);
         }
     }
@@ -1518,17 +1447,16 @@ void FuncDef() {
     currentFunctionEpilogueLabel = "L_epilogue_FUNC_" + funcName;
 
     match("LPARENT");
-    enterScope(true); // New function frame, reset tempAddr
-    reset_spill_management(); // Reset spill counts
+    enterScope(true); 
+    reset_spill_management(); 
 
     vector<string> paramNamesList;
     if (lookahead().type != "RPARENT") {
-        // Simplified param parsing, assuming all are INTTK
         match("INTTK");
         string firstParamName = lookahead().value;
         match("IDENFR");
         paramNamesList.push_back(firstParamName);
-        addSymbol(firstParamName, "int", false, false, 1); // Params added to local scope
+        addSymbol(firstParamName, "int", false, false, 1); 
 
         while (lookahead().type == "COMMA") {
             match("COMMA");
@@ -1546,25 +1474,20 @@ void FuncDef() {
     size_t prologueInsertionPoint = intermediateCode.size();
     intermediateCode.push_back({"NOP_PROLOGUE_PLACEHOLDER", "", "", ""});
 
-    Block(); // Parse block, tempAddr further updated by local vars
-
+    Block(); 
     int frameSize = calculateFrameSize(tempAddr, max_spill_slots_needed_for_function);
 
     vector<Quadruple> prologueQuads;
     prologueQuads.push_back({"ADDIU", "$sp", "-" + to_string(frameSize), "$sp"});
     prologueQuads.push_back({"SW", "$ra", "", to_string(frameSize - 4) + "($sp)"});
 
-    // Store parameters from $a0-$a3 or caller's stack into their local stack slots
     for (int i = 0; i < (int)paramNamesList.size(); ++i) {
-        string paramLocalAddr = getVariableAddress(paramNamesList[i]); // This gives X($sp) relative to new $sp
-        if (i < 4) { // First 4 params from $a0-$a3
+        string paramLocalAddr = getVariableAddress(paramNamesList[i]); 
+        if (i < 4) { 
             prologueQuads.push_back({"SW", "$a" + to_string(i), "", paramLocalAddr});
-        } else { // Params > 4 from caller's stack
-            // Offset from current $sp to caller's stack where arg was pushed.
-            // Caller pushed arg, then jal. $sp for callee is set by prologue.
-            // Arg is at frameSize (to get to old $sp) + (i-4)*4 (offset on caller's arg stack area)
+        } else { 
             string callerStackArgAddr = to_string(frameSize + (i - 4) * SPILL_SLOT_SIZE) + "($sp)";
-            string tempRegForParamLoad = TEMP_REG1; // Use a fixed temp
+            string tempRegForParamLoad = TEMP_REG1; 
             prologueQuads.push_back({"LW", tempRegForParamLoad, "", callerStackArgAddr});
             prologueQuads.push_back({"SW", tempRegForParamLoad, "", paramLocalAddr});
         }
@@ -1575,11 +1498,9 @@ void FuncDef() {
         intermediateCode.insert(intermediateCode.begin() + prologueInsertionPoint,
                                 prologueQuads.begin(), prologueQuads.end());
     } else {
-         cerr << "Warning: Prologue placeholder issue for " << funcName << "." << endl;
          intermediateCode.insert(intermediateCode.begin() + prologueInsertionPoint, prologueQuads.begin(), prologueQuads.end());
     }
 
-    // Implicit return for void functions (from reference)
     bool explicitReturnExists = false;
     if (!intermediateCode.empty()) {
         long func_entry_label_pos = -1;
@@ -1589,8 +1510,9 @@ void FuncDef() {
                 break;
             }
         }
-        for (long k_loop = intermediateCode.size() - 1; k_loop >=0 && k_loop > func_entry_label_pos; --k_loop) {
-            const auto& quad = intermediateCode[k_loop];
+        for (long k_loop = intermediateCode.size() - 1; k_loop >=0 ; --k_loop) {
+             if (func_entry_label_pos != -1 && k_loop <= func_entry_label_pos) break;
+             const auto& quad = intermediateCode[k_loop];
              if (quad.op == "J" && quad.result == currentFunctionEpilogueLabel) {
                 explicitReturnExists = true;
                 break;
@@ -1604,11 +1526,7 @@ void FuncDef() {
             const auto& last_quad = intermediateCode.back();
             string lastMeaningfulOpTarget = "";
             if (last_quad.op == "J") lastMeaningfulOpTarget = last_quad.result;
-            else if (last_quad.op == "LABEL" && last_quad.result == currentFunctionEpilogueLabel && intermediateCode.size() > 1) {
-                 const auto& second_last_quad = intermediateCode[intermediateCode.size()-2];
-                 if (second_last_quad.op == "J") lastMeaningfulOpTarget = second_last_quad.result;
-            }
-
+            
             if (lastMeaningfulOpTarget == currentFunctionEpilogueLabel) {
                 alreadyJumpingToEpilogue = true;
             }
@@ -1617,9 +1535,6 @@ void FuncDef() {
             if (return_type_str == "void") {
                 gen("J", "", "", currentFunctionEpilogueLabel);
             } else {
-                 // For non-void functions, a missing return is a logical error.
-                 // To be safe, jump to epilogue. $v0 might contain garbage.
-                 // cerr << "Warning: Missing return in non-void function " << funcName << endl;
                  gen("J", "", "", currentFunctionEpilogueLabel);
             }
         }
@@ -1637,13 +1552,11 @@ void FuncDef() {
 
 void CompUnit()
 {
-    // Global Decls
     while (lookahead().type == "CONSTTK" ||
            (lookahead().type == "INTTK" && lookahead(1).type == "IDENFR" && lookahead(2).type != "LPARENT"))
     {
         Decl();
     }
-    // FuncDefs (non-main)
     while ((lookahead().type == "INTTK" || lookahead().type == "VOIDTK") &&
            lookahead(1).type == "IDENFR" &&
            lookahead(1).value != "main" && 
@@ -1651,8 +1564,7 @@ void CompUnit()
     {
         FuncDef();
     }
-    // MainFuncDef
-    if (lookahead().type == "INTTK" && lookahead(1).type == "MAINTK") { // From reference logic
+    if (lookahead().type == "INTTK" && lookahead(1).type == "MAINTK") { 
         MainFuncDef();
     } else if (lookahead().type != "EOF") {
         cerr << "Syntax Error: Expected MainFuncDef or EOF after Decls/FuncDefs, got " << lookahead().type
@@ -1674,12 +1586,12 @@ string FuncType()
         match("VOIDTK");
         return "void";
     }
-     else // From reference
+     else 
     {
         cerr << "Syntax error: expected 'int' or 'void' for function type but got " << lookahead().type << endl;
         exit(1);
     }
-    return ""; // Should not reach here
+    return ""; 
 }
 
 string LVal(bool *outIsArrayAccessWithoutIndex) {
@@ -1702,41 +1614,41 @@ string LVal(bool *outIsArrayAccessWithoutIndex) {
         cerr << "错误：变量或常量 '" << varName << "' 未声明 (LVal)" << endl;
         exit(1);
     }
-    string baseAddrStr = getVariableAddress(varName); // Gives label or X($sp)
+    string baseAddrStr = getVariableAddress(varName); 
 
     if (lookahead().type == "LBRACK") {
-        if (sym.arraySize == 1 && !sym.isFunction) { // From reference
+        if (sym.arraySize == 1 && !sym.isFunction) { 
             cerr << "Error: Variable '" << varName << "' is not an array but is being accessed with []." << endl;
             exit(1);
         }
         if (outIsArrayAccessWithoutIndex) *outIsArrayAccessWithoutIndex = false;
         match("LBRACK");
-        string idxReg = Exp(); // Value of index
+        string idxReg = Exp(); 
         match("RBRACK");
 
-        string offsetReg = getNextTempReg(); // Will hold byte offset
+        string offsetReg = getNextTempReg(); 
         string four_val_reg = getNextTempReg();
         gen("LI", "4", "", four_val_reg);
-        gen("MUL", idxReg, four_val_reg, offsetReg); // offset_in_bytes = index_value * 4
+        gen("MUL", idxReg, four_val_reg, offsetReg); 
 
-        string elementAddrReg = getNextTempReg(); // Will hold final address of element
+        string elementAddrReg = getNextTempReg(); 
         if (sym.isGlobal) {
             string baseAddrInReg = getNextTempReg();
-            gen("LA", sym.name, "", baseAddrInReg);  // Load address of global array base
-            gen("ADD", baseAddrInReg, offsetReg, elementAddrReg); // element_addr = base_addr + offset_in_bytes
-        } else { // Local array
+            gen("LA", sym.name, "", baseAddrInReg);  
+            gen("ADD", baseAddrInReg, offsetReg, elementAddrReg); 
+        } else { 
             string baseAddrActualReg = getNextTempReg(); 
             size_t sp_pos = baseAddrStr.find("($sp)");
-            string offset_from_sp_str = (sp_pos != string::npos) ? baseAddrStr.substr(0, sp_pos) : "0"; // Should always be X($sp)
-            gen("ADDIU","$sp", offset_from_sp_str, baseAddrActualReg); // baseAddrActualReg = $sp + array_base_stack_offset
-            gen("ADD", baseAddrActualReg, offsetReg, elementAddrReg);   // element_addr = base_addr_on_stack + offset_in_bytes
+            string offset_from_sp_str = (sp_pos != string::npos) ? baseAddrStr.substr(0, sp_pos) : "0"; 
+            gen("ADDIU","$sp", offset_from_sp_str, baseAddrActualReg); 
+            gen("ADD", baseAddrActualReg, offsetReg, elementAddrReg);   
         }
-        return elementAddrReg; // This register now holds the *address* of the element
+        return elementAddrReg; 
     } else { 
         if (outIsArrayAccessWithoutIndex && sym.arraySize > 1) {
             *outIsArrayAccessWithoutIndex = true; 
         }
-        return baseAddrStr; // For scalars: its address. For array name: base address string.
+        return baseAddrStr; 
     }
 }
 
@@ -1751,7 +1663,7 @@ string UnaryExp()
     {
         string op = lookahead().type;
         match(op);
-        string operand_reg = UnaryExp(); // Recursive call
+        string operand_reg = UnaryExp(); 
         string temp_res_reg = getNextTempReg();
         if (op == "MINU")
         {
@@ -1759,14 +1671,12 @@ string UnaryExp()
         }
         else if (op == "NOT")
         {
-            // Assuming operand_reg is 0 for false, non-zero for true.
-            // NOT should make 0 -> 1, non-zero -> 0.
-            gen("NOT", operand_reg, "", temp_res_reg); // MIPS for NOT will handle this
+            gen("NOT", operand_reg, "", temp_res_reg); 
         }
-        else // PLUS
+        else 
         {
             if (temp_res_reg != operand_reg) gen("MOVE", operand_reg, "", temp_res_reg);
-            else return operand_reg; // Optimization
+            else return operand_reg; 
         }
         return temp_res_reg;
     }
@@ -1790,7 +1700,7 @@ string MulExp() {
         string spill_addr_str_for_lhs;
         int saved_spill_offset_before_lhs_spill = current_spill_slot_offset;
 
-        if (is_temp_register(lhs_operand_for_this_op)) { // Use helper and tempAddr
+        if (is_temp_register(lhs_operand_for_this_op)) { 
             spill_addr_str_for_lhs = to_string(tempAddr + current_spill_slot_offset) + "($sp)";
             gen("SW", lhs_operand_for_this_op, "", spill_addr_str_for_lhs);
             did_spill_lhs = true;
@@ -1828,7 +1738,7 @@ string AddExp() {
         string spill_addr_str_for_lhs;
         int saved_spill_offset_before_lhs_spill = current_spill_slot_offset;
 
-        if (is_temp_register(lhs_operand_for_this_op)) { // Use helper and tempAddr
+        if (is_temp_register(lhs_operand_for_this_op)) { 
             spill_addr_str_for_lhs = to_string(tempAddr + current_spill_slot_offset) + "($sp)";
             gen("SW", lhs_operand_for_this_op, "", spill_addr_str_for_lhs);
             did_spill_lhs = true;
@@ -1857,7 +1767,7 @@ string AddExp() {
 
 string Exp()
 {
-    string result_reg = AddExp(); // AddExp is the entry point for SysY expressions
+    string result_reg = AddExp(); 
     return result_reg;
 }
 
@@ -1887,7 +1797,7 @@ string PrimaryExp()
         }
         if (!foundSym) { cerr << "Error: Symbol " << varName << " not found in PrimaryExp (after LVal)." << endl; exit(1);}
         
-        bool lvalReturnedRegisterHoldingAddress = is_temp_register(lvalResult); // Use helper
+        bool lvalReturnedRegisterHoldingAddress = is_temp_register(lvalResult); 
 
         if (lvalReturnedRegisterHoldingAddress) { 
             string tempValueReg = getNextTempReg();
@@ -1911,14 +1821,14 @@ string PrimaryExp()
                     gen("LA", lvalResult, "", tempDestReg); 
                 } else { 
                     size_t sp_pos = lvalResult.find("($sp)");
-                    if (sp_pos == string::npos) { // Should not happen for local array base
+                    if (sp_pos == string::npos) { 
                         cerr << "Error: Malformed local array address string in PrimaryExp: " << lvalResult << endl;
                         exit(1);
                     }
                     string offset_str = lvalResult.substr(0, sp_pos);
                     gen("ADDIU", "$sp", offset_str, tempDestReg); 
                 }
-            } else { // Scalar variable, or (less common here) array element whose LVal returned address string
+            } else { 
                 gen("LOAD", lvalResult, "", tempDestReg); 
             }
             return tempDestReg;
@@ -1932,25 +1842,25 @@ string PrimaryExp()
         gen("LI", num, "", temp_reg);
         return temp_reg;
     }
-    else if (lookahead().type == "GETINTTK") // This is a primary expression that evaluates to a value
+    else if (lookahead().type == "GETINTTK") 
     {
         match("GETINTTK");
         match("LPARENT");
         match("RPARENT");
         string temp_reg = getNextTempReg();
-        gen("GETINT", "", "", temp_reg); // Result of getint() is in temp_reg
+        gen("GETINT", "", "", temp_reg); 
         return temp_reg;
     }
-    else // From reference
+    else 
     {
         cerr << "语法错误：PrimaryExp 遇到意外的 Token '" << lookahead().type << "'" << endl;
         exit(1);
     }
-    return ""; // Should not reach
+    return ""; 
 }
 
 
-void skip_comments(const string &code, size_t &i) { // From reference
+void skip_comments(const string &code, size_t &i) { 
     if (i + 1 < code.length() && code[i] == '/' && code[i + 1] == '/') {
         i += 2;
         while (i < code.length() && code[i] != '\n') i++;
@@ -1965,11 +1875,10 @@ void skip_comments(const string &code, size_t &i) { // From reference
             i++;
         }
         cerr << "Error: Unterminated block comment starting at position " << comment_start_pos << endl;
-        // Potentially exit or handle as error
     }
 }
 
-void tokenize(const string &code) { // String literal part from reference
+void tokenize(const string &code) { 
     size_t i = 0, len = code.length();
     while (i < len) {
         if (isspace(code[i])) {
@@ -1992,8 +1901,8 @@ void tokenize(const string &code) { // String literal part from reference
                             case 'n': str_val += '\n'; break;
                             case 't': str_val += '\t'; break;
                             case '\\': str_val += '\\'; break;
-                            case '"': str_val += '"'; break; // Allow escaped quote inside string
-                            default: // Store unrecognized escape sequences as is (e.g., \q -> \q)
+                            case '"': str_val += '"'; break; 
+                            default: 
                                 str_val += '\\'; 
                                 str_val += code[i]; 
                                 break;
@@ -2048,19 +1957,17 @@ void tokenize(const string &code) { // String literal part from reference
             tokens.push_back({"INTCON", code.substr(start, i - start)});
             continue;
         }
-        cerr << "Error: Unrecognized character '" << code[i] << "' at position " << i << endl; // From reference
-        i++; // Move past unrecognized char to avoid infinite loop
+        cerr << "Error: Unrecognized character '" << code[i] << "' at position " << i << endl; 
+        i++; 
     }
 }
 
-
-// ======================= MIPS生成 =======================
 void DataSection(ofstream &mipsFile)
 {
     mipsFile << ".data\n";
-    if (!symbolTableStack.empty()) // Use renamed global
+    if (!symbolTableStack.empty()) 
     {
-        for (const auto &symPair : symbolTableStack[0]) // Use renamed global
+        for (const auto &symPair : symbolTableStack[0]) 
         {
             const Symbol &sym = symPair.second;
             if (sym.isFunction)
@@ -2077,26 +1984,24 @@ void DataSection(ofstream &mipsFile)
                             mipsFile << sym.constValuesList[k] << (k == sym.constValuesList.size() - 1 ? "" : ", ");
                         }
                     }
-                    // Added from reference for const array size 0 or uninit
-                    else if (sym.arraySize > 0 && sym.arraySize != 1) { // arraySize > 0 implies it's not empty {}
+                    else if (sym.arraySize > 0 && sym.arraySize != 1) { 
                         for (int k=0; k < sym.arraySize; ++k) mipsFile << "0" << (k == sym.arraySize -1 ? "" : ", ");
                     }
-                    else // Scalar or error case
+                    else 
                     {
-                        mipsFile << (sym.value.empty() ? "0" : sym.value); // Default to 0 if no value (should be caught by parser)
+                        mipsFile << (sym.value.empty() ? "0" : sym.value); 
                     }
                     mipsFile << "\n";
                 }
-                else // Global variable
+                else 
                 {
                     if (sym.arraySize > 1)
                     {
-                        // Logic from reference for global array init string (e.g. "{1,2,3}" or empty "{}" )
                         if (!sym.value.empty() && sym.value.front() == '{' && sym.value.back() == '}') {
                             string innerValues = sym.value.substr(1, sym.value.length() - 2);
-                            if (innerValues.empty() && sym.arraySize > 0) { // {} initializer for sized array
+                            if (innerValues.empty() && sym.arraySize > 0) { 
                                 mipsFile << sym.name << ": .space " << sym.arraySize * 4 << "\n";
-                            } else if (!innerValues.empty()) { // {v1, v2...}
+                            } else if (!innerValues.empty()) { 
                                 stringstream ss(innerValues);
                                 string item;
                                 vector<string> initializers;
@@ -2109,23 +2014,22 @@ void DataSection(ofstream &mipsFile)
                                 for (size_t k = 0; k < initializers.size(); ++k) {
                                     mipsFile << initializers[k] << (k == initializers.size() - 1 ? "" : ", ");
                                 }
-                                // Pad with zeros if fewer initializers than array size
                                 for (int k_init = initializers.size(); k_init < sym.arraySize; ++k_init) {
                                      if (!initializers.empty() || k_init > initializers.size()) mipsFile << ", ";
-                                     else if (k_init > 0 && initializers.empty()) mipsFile << ", "; // Handles cases like .word ,0,0 for {,,} which is invalid
-                                     else if (k_init==0 && initializers.empty() && sym.arraySize > 0) {} // No comma for first of several 0s if list was empty
-                                     else if (k_init > 0 ) mipsFile << ", "; // Default comma for subsequent elements
+                                     else if (k_init > 0 && initializers.empty()) mipsFile << ", "; 
+                                     else if (k_init==0 && initializers.empty() && sym.arraySize > 0) {} 
+                                     else if (k_init > 0 ) mipsFile << ", "; 
                                     mipsFile << "0";
                                 }
                                 mipsFile << "\n";
-                            } else { // No value string, or not {} form, but arraySize > 1
+                            } else { 
                                  mipsFile << sym.name << ": .space " << sym.arraySize * 4 << "\n";
                             }
-                        } else { // No initializer string, or not in {..} format
+                        } else { 
                              mipsFile << sym.name << ": .space " << sym.arraySize * 4 << "\n";
                         }
                     }
-                    else // Global scalar
+                    else 
                     {
                         string initVal = sym.value.empty() ? "0" : sym.value;
                         mipsFile << sym.name << ": .word " << initVal << "\n";
@@ -2143,14 +2047,14 @@ void DataSection(ofstream &mipsFile)
 void TextSection(ofstream &mipsFile)
 {
     mipsFile << ".text\n";
-    mipsFile << ".globl main\n"; // Standard MIPS global declaration
-    mipsFile << "main:\n";       // Entry point for MARS execution if .globl main is used
-    mipsFile << "    li   $sp, 0x7ffffffc\n"; // Initialize stack pointer
-    mipsFile << "    jal  FUNC_main\n";       // Jump to the actual main function
-    mipsFile << "    li   $v0, 10\n";         // Exit syscall code
-    mipsFile << "    syscall\n";             // Exit
+    mipsFile << ".globl main\n"; 
+    mipsFile << "main:\n";       
+    mipsFile << "    li   $sp, 0x7ffffffc\n"; 
+    mipsFile << "    jal  FUNC_main\n";       
+    mipsFile << "    li   $v0, 10\n";         
+    mipsFile << "    syscall\n";             
 
-    for (const auto &quad : intermediateCode) // Use renamed global
+    for (const auto &quad : intermediateCode) 
     {
         if (quad.op == "NOP_PROLOGUE_PLACEHOLDER")
         {
@@ -2158,216 +2062,237 @@ void TextSection(ofstream &mipsFile)
         }
         else if (quad.op == "PRINTF_STR")
         {
-            mipsFile << "li $v0, 4\n";
-            mipsFile << "la $a0, " << quad.arg1 << "\n";
-            mipsFile << "syscall\n";
+            mipsFile << "    li $v0, 4\n";
+            mipsFile << "    la $a0, " << quad.arg1 << "\n";
+            mipsFile << "    syscall\n";
         }
         else if (quad.op == "PRINTF_ARG")
         {
-            mipsFile << "li $v0, 1\n";
-            mipsFile << "move $a0, " << quad.arg1 << "\n";
-            mipsFile << "syscall\n";
+            mipsFile << "    li $v0, 1\n";
+            mipsFile << "    move $a0, " << quad.arg1 << "\n";
+            mipsFile << "    syscall\n";
         }
         else if (quad.op == "GETINT")
         {
-            mipsFile << "li $v0, 5\n";
-            mipsFile << "syscall\n";
-            mipsFile << "move " << quad.result << ", $v0\n";
+            mipsFile << "    li $v0, 5\n";
+            mipsFile << "    syscall\n";
+            mipsFile << "    move " << quad.result << ", $v0\n";
         }
-        else if (quad.op == "SYSCALL") // Generic syscall, if used (not typical for this subset)
+        else if (quad.op == "SYSCALL") 
         {
-            mipsFile << "syscall\n";
+            mipsFile << "    syscall\n";
         }
-        else if (quad.op == "LOAD") // lw wrapper
+        else if (quad.op == "LOAD") 
         {
-            // Logic from reference file's MIPS gen for LOAD
-            if (!quad.arg1.empty() && quad.arg1[0] == '$') { // arg1 is a register holding an address
-                mipsFile << "lw " << quad.result << ", 0(" << quad.arg1 << ")\n";
-            } else if (quad.arg1.find("($sp)") == string::npos && !isdigit(quad.arg1[0]) && quad.arg1.find("str") != 0 && quad.arg1.find("L_") != 0) {
-                // arg1 is a global data label (heuristic check)
+            if (!quad.arg1.empty() && quad.arg1[0] == '$') { 
+                mipsFile << "    lw " << quad.result << ", 0(" << quad.arg1 << ")\n";
+            } 
+            // Reverting to explicit la for global labels for LOAD, similar to original 111.cpp
+            else if (quad.arg1.find("($sp)") == string::npos && !isdigit(quad.arg1[0]) && quad.arg1.find("str") != 0 && quad.arg1.find("L_") != 0 && quad.arg1.find("FUNC_") != 0) {
                 bool isDataLabel = false;
                 if(!symbolTableStack.empty() && symbolTableStack[0].count(quad.arg1)) {
                     isDataLabel = !symbolTableStack[0][quad.arg1].isFunction;
                 }
-                if(isDataLabel) {
-                     mipsFile << "lw " << quad.result << ", " << quad.arg1 << "\n"; // MARS handles `lw $reg, label`
-                } else { // Fallback or other label types (should ideally not happen for LOAD from non-address)
-                     mipsFile << "lw " << quad.result << ", " << quad.arg1 << "\n";
+                if(isDataLabel) { // quad.arg1 is a global data label string
+                     mipsFile << "    la $at, " << quad.arg1 << "\n";
+                     mipsFile << "    lw " << quad.result << ", 0($at)\n";
+                } else { 
+                     mipsFile << "    lw " << quad.result << ", " << quad.arg1 << "\n"; 
                 }
-            } else { // arg1 is stack address like "offset($sp)"
-                mipsFile << "lw " << quad.result << ", " << quad.arg1 << "\n";
+            }
+            else { 
+                mipsFile << "    lw " << quad.result << ", " << quad.arg1 << "\n";
             }
         }
-        else if (quad.op == "LW") // Direct lw
+        else if (quad.op == "LW") 
         {
-            mipsFile << "lw " << quad.arg1 << ", " << quad.result << "\n"; // Note: arg1 is dest, result is src for LW quad
+            mipsFile << "    lw " << quad.arg1 << ", " << quad.result << "\n"; 
         }
-        else if (quad.op == "STORE") // sw wrapper
+        else if (quad.op == "STORE") 
         {
-            // Logic from reference file's MIPS gen for STORE
-             if (!quad.result.empty() && quad.result[0] == '$') { // result is a register holding an address
-                mipsFile << "sw " << quad.arg1 << ", 0(" << quad.result << ")\n";
-            } else if (quad.result.find("($sp)") == string::npos && !isdigit(quad.result[0]) && quad.result.find("str") != 0 && quad.result.find("L_") != 0) {
-                // result is a global data label
-                 mipsFile << "sw " << quad.arg1 << ", " << quad.result << "\n"; // MARS handles `sw $reg, label`
-            } else { // result is stack address like "offset($sp)"
-                mipsFile << "sw " << quad.arg1 << ", " << quad.result << "\n";
+             if (!quad.result.empty() && quad.result[0] == '$') { 
+                mipsFile << "    sw " << quad.arg1 << ", 0(" << quad.result << ")\n";
+            } 
+            // Reverting to explicit la for global labels for STORE
+            else if (quad.result.find("($sp)") == string::npos && !isdigit(quad.result[0]) && quad.result.find("str") != 0 && quad.result.find("L_") != 0 && quad.result.find("FUNC_") != 0) {
+                 bool isDataLabel = false;
+                if(!symbolTableStack.empty() && symbolTableStack[0].count(quad.result)) {
+                    isDataLabel = !symbolTableStack[0][quad.result].isFunction;
+                }
+                if(isDataLabel) { // quad.result is a global data label string
+                    mipsFile << "    la $at, " << quad.result << "\n";
+                    mipsFile << "    sw " << quad.arg1 << ", 0($at)\n";
+                } else {
+                     mipsFile << "    sw " << quad.arg1 << ", " << quad.result << "\n";
+                }
+            }
+            else { 
+                mipsFile << "    sw " << quad.arg1 << ", " << quad.result << "\n";
             }
         }
-        else if (quad.op == "SW") // Direct sw
+        else if (quad.op == "SW") 
         {
-            mipsFile << "sw " << quad.arg1 << ", " << quad.result << "\n"; // arg1 is src, result is dest for SW quad
+            mipsFile << "    sw " << quad.arg1 << ", " << quad.result << "\n"; 
         }
         else if (quad.op == "ADD")
         {
-            mipsFile << "add " << quad.result << ", " << quad.arg1 << ", " << quad.arg2 << "\n";
+            mipsFile << "    add " << quad.result << ", " << quad.arg1 << ", " << quad.arg2 << "\n";
         }
         else if (quad.op == "SUB")
         {
-            mipsFile << "sub " << quad.result << ", " << quad.arg1 << ", " << quad.arg2 << "\n";
+            mipsFile << "    sub " << quad.result << ", " << quad.arg1 << ", " << quad.arg2 << "\n";
         }
-        else if (quad.op == "MUL") // Use pseudo-instruction
+        // Reverting to original 111.cpp MIPS for MUL, DIV, MOD
+        else if (quad.op == "MUL") 
         {
-            mipsFile << "mul " << quad.result << ", " << quad.arg1 << ", " << quad.arg2 << "\n";
+            mipsFile << "    mult " << quad.arg1 << ", " << quad.arg2 << "\n";
+            mipsFile << "    mflo " << quad.result << "\n";
         }
-        else if (quad.op == "DIV") // Use pseudo-instruction
+        else if (quad.op == "DIV") 
         {
-            mipsFile << "div " << quad.result << ", " << quad.arg1 << ", " << quad.arg2 << "\n";
+            mipsFile << "    div " << quad.arg1 << ", " << quad.arg2 << "\n";
+            mipsFile << "    mflo " << quad.result << "\n";
         }
-        else if (quad.op == "MOD") // Use pseudo-instruction
+        else if (quad.op == "MOD") 
         {
-            mipsFile << "rem " << quad.result << ", " << quad.arg1 << ", " << quad.arg2 << "\n";
+            mipsFile << "    div " << quad.arg1 << ", " << quad.arg2 << "\n";
+            mipsFile << "    mfhi " << quad.result << "\n";
         }
-        else if (quad.op == "NEG") // Use pseudo-instruction
+        else if (quad.op == "NEG") 
         {
-            mipsFile << "neg " << quad.result << ", " << quad.arg1 << "\n";
+             mipsFile << "    sub " << quad.result << ", $zero, " << quad.arg1 << "\n"; // Original was neg
         }
-        else if (quad.op == "POS") // This was 'add $res, $arg1, $zero'. Effectively a move.
+        else if (quad.op == "POS") 
         {
-            if (quad.result != quad.arg1) mipsFile << "move " << quad.result << ", " << quad.arg1 << "\n";
+            if (quad.result != quad.arg1) mipsFile << "    move " << quad.result << ", " << quad.arg1 << "\n";
         }
-        else if (quad.op == "ASSIGN") // LI then SW (original 111.cpp was a bit complex here)
+        else if (quad.op == "ASSIGN") 
         {
-            // Assuming arg2 is immediate. If arg2 can be register, need move.
-            // This ASSIGN op might be redundant if LI + STORE is used by parser.
-            mipsFile << "li " << TEMP_REG1 << ", " << quad.arg2 << "\n"; // Load immediate into temp
-            // Store logic similar to STORE op
+            mipsFile << "    li " << TEMP_REG1 << ", " << quad.arg2 << "\n"; 
             if (!quad.result.empty() && quad.result[0] == '$') {
-                 mipsFile << "sw " << TEMP_REG1 << ", 0(" << quad.result << ")\n";
+                 mipsFile << "    sw " << TEMP_REG1 << ", 0(" << quad.result << ")\n";
             } else if (quad.result.find("($sp)") == string::npos && !isdigit(quad.result[0])) {
-                mipsFile << "sw " << TEMP_REG1 << ", " << quad.result << "\n"; // Global label
+                // Assume global label, use explicit la like STORE
+                mipsFile << "    la $at, " << quad.result << "\n";
+                mipsFile << "    sw " << TEMP_REG1 << ", 0($at)\n";
             } else {
-                mipsFile << "sw " << TEMP_REG1 << ", " << quad.result << "\n"; // Stack address
+                mipsFile << "    sw " << TEMP_REG1 << ", " << quad.result << "\n"; 
             }
         }
-        else if (quad.op == "IMM") // This is same as LI
+        else if (quad.op == "IMM") 
         {
-            mipsFile << "li " << quad.result << ", " << quad.arg1 << "\n";
+            mipsFile << "    li " << quad.result << ", " << quad.arg1 << "\n";
         }
         else if (quad.op == "MOVE")
         {
-            mipsFile << "move " << quad.result << ", " << quad.arg1 << "\n";
+            mipsFile << "    move " << quad.result << ", " << quad.arg1 << "\n";
         }
         else if (quad.op == "PUSH")
         {
-            mipsFile << "addiu $sp, $sp, -4\n";
-            mipsFile << "sw " << quad.arg1 << ", 0($sp)\n";
+            mipsFile << "    addiu $sp, $sp, -4\n";
+            mipsFile << "    sw " << quad.arg1 << ", 0($sp)\n";
         }
         else if (quad.op == "CALL")
         {
-            mipsFile << "jal FUNC_" << quad.arg1 << "\n"; // Assumes func name in arg1, not full label
-            if (!quad.result.empty()) // If non-void function, move result from $v0
+            mipsFile << "    jal FUNC_" << quad.arg1 << "\n"; 
+            if (!quad.result.empty()) 
             {
-                mipsFile << "move " << quad.result << ", $v0\n";
+                mipsFile << "    move " << quad.result << ", $v0\n";
             }
         }
-        else if (quad.op == "AND") // Bitwise AND (not used by LAndExp anymore if it uses short-circuit jumps)
+        else if (quad.op == "AND") 
         {
-            mipsFile << "and " << quad.result << ", " << quad.arg1 << ", " << quad.arg2 << "\n";
+            mipsFile << "    and " << quad.result << ", " << quad.arg1 << ", " << quad.arg2 << "\n";
         }
-        else if (quad.op == "OR") // Bitwise OR (not used by LOrExp anymore)
+        else if (quad.op == "OR") 
         {
-            mipsFile << "or " << quad.result << ", " << quad.arg1 << ", " << quad.arg2 << "\n";
+            mipsFile << "    or " << quad.result << ", " << quad.arg1 << ", " << quad.arg2 << "\n";
         }
-        else if (quad.op == "NOT") // Logical NOT (0 -> 1, non-zero -> 0)
+        else if (quad.op == "NOT") 
         {
-            mipsFile << "seq " << quad.result << ", " << quad.arg1 << ", $zero\n"; // Aligned with reference
+            mipsFile << "    sltiu " << quad.result << ", " << quad.arg1 << ", 1\n"; // Original 111.cpp logic
         }
         else if (quad.op == "LA")
         {
-            mipsFile << "la " << quad.result << ", " << quad.arg1 << "\n";
+            mipsFile << "    la " << quad.result << ", " << quad.arg1 << "\n";
         }
         else if (quad.op == "ADDIU")
         {
-            mipsFile << "addiu " << quad.result << ", " << quad.arg1 << ", " << quad.arg2 << "\n";
+            mipsFile << "    addiu " << quad.result << ", " << quad.arg1 << ", " << quad.arg2 << "\n";
         }
-        // Relational operators using pseudo-instructions (aligned with reference)
-        else if (quad.op == "LSS") // <
+        // Reverting to original 111.cpp MIPS for relational ops
+        else if (quad.op == "LSS")
         {
-            mipsFile << "slt " << quad.result << ", " << quad.arg1 << ", " << quad.arg2 << endl;
+            mipsFile << "    slt " << quad.result << ", " << quad.arg1 << ", " << quad.arg2 << "\n";
         }
-        else if (quad.op == "LEQ") // <=
+        else if (quad.op == "LEQ")
         {
-             mipsFile << "sle " << quad.result << ", " << quad.arg1 << ", " << quad.arg2 << "\n";
+            mipsFile << "    slt " << TEMP_REG1 << ", " << quad.arg1 << ", " << quad.arg2 << "\n";
+            mipsFile << "    seq " << TEMP_REG2 << ", " << quad.arg1 << ", " << quad.arg2 << "\n"; // seq is pseudo, fine
+            mipsFile << "    or " << quad.result << ", " << TEMP_REG1 << ", " << TEMP_REG2 << "\n";
         }
-        else if (quad.op == "GRE") // >
+        else if (quad.op == "GRE")
         {
-            mipsFile << "sgt " << quad.result << ", " << quad.arg1 << ", " << quad.arg2 << endl;
+            mipsFile << "    slt " << quad.result << ", " << quad.arg2 << ", " << quad.arg1 << "\n";
         }
-        else if (quad.op == "GEQ") // >=
+        else if (quad.op == "GEQ")
         {
-             mipsFile << "sge " << quad.result << ", " << quad.arg1 << ", " << quad.arg2 << "\n";
+            mipsFile << "    slt " << TEMP_REG1 << ", " << quad.arg2 << ", " << quad.arg1 << "\n";
+            mipsFile << "    seq " << TEMP_REG2 << ", " << quad.arg2 << ", " << quad.arg1 << "\n";
+            mipsFile << "    or " << quad.result << ", " << TEMP_REG1 << ", " << TEMP_REG2 << "\n";
         }
-        else if (quad.op == "EQL") // ==
+        else if (quad.op == "EQL")
         {
-            mipsFile << "seq " << quad.result << ", " << quad.arg1 << ", " << quad.arg2 << "\n";
+            mipsFile << "    xor " << TEMP_REG1 << ", " << quad.arg1 << ", " << quad.arg2 << "\n";
+            mipsFile << "    sltiu " << quad.result << ", " << TEMP_REG1 << ", 1\n";
         }
-        else if (quad.op == "NEQ") // !=
+        else if (quad.op == "NEQ")
         {
-            mipsFile << "sne " << quad.result << ", " << quad.arg1 << ", " << quad.arg2 << "\n";
+            mipsFile << "    xor " << TEMP_REG1 << ", " << quad.arg1 << ", " << quad.arg2 << "\n";
+            mipsFile << "    sltu " << quad.result << ", $zero, " << TEMP_REG1 << "\n";
         }
-        // Branch instructions
         else if (quad.op == "BEQ")
         {
-            mipsFile << "beq " << quad.arg1 << ", " << quad.arg2 << ", " << quad.result << "\n";
+            mipsFile << "    beq " << quad.arg1 << ", " << quad.arg2 << ", " << quad.result << "\n";
         }
         else if (quad.op == "BEQZ" || quad.op == "BNEZ")
         {
-            mipsFile << (quad.op == "BEQZ" ? "beqz " : "bnez ")
+            mipsFile << "    " << (quad.op == "BEQZ" ? "beqz " : "bnez ")
                      << quad.arg1 << ", " << quad.result << "\n";
         }
         else if (quad.op == "BNE")
         {
-            mipsFile << "bne " << quad.arg1 << ", " << quad.arg2 << ", " << quad.result << "\n";
+            mipsFile << "    bne " << quad.arg1 << ", " << quad.arg2 << ", " << quad.result << "\n";
         }
         else if (quad.op == "J")
         {
-            mipsFile << "j " << quad.result << "\n";
+            mipsFile << "    j " << quad.result << "\n";
         }
         else if (quad.op == "LABEL")
         {
             mipsFile << quad.result << ":\n";
         }
-        else if (quad.op == "FUNC_DEF") // This was used in 111.cpp, but LABEL FUNC_Name is more standard
+        else if (quad.op == "FUNC_DEF") 
         {
-            mipsFile << quad.arg1 << ":\n"; // Assuming arg1 is the full label FUNC_Name
+            mipsFile << quad.arg1 << ":\n"; 
         }
         else if (quad.op == "LI")
         {
-            mipsFile << "li " << quad.result << ", " << quad.arg1 << "\n";
+            mipsFile << "    li " << quad.result << ", " << quad.arg1 << "\n";
         }
         else if (quad.op == "JR")
         {
-            mipsFile << "jr " << quad.arg1 << "\n";
+            mipsFile << "    jr " << quad.arg1 << "\n";
         }
          else
         {
+            mipsFile << "# unknown op: " << quad.op << " " << quad.arg1 << " " << quad.arg2 << " " << quad.result << "\n";
             cerr << "错误：未支持的中间代码操作类型 '" << quad.op << "'" << endl;
         }
     }
 }
 
-void MIPS() // Wrapper for MIPS generation
+void MIPS() 
 {
     ofstream mipsFile("mips.txt");
     if (!mipsFile.is_open()) {
@@ -2376,13 +2301,13 @@ void MIPS() // Wrapper for MIPS generation
     }
     DataSection(mipsFile);
     TextSection(mipsFile);
-    mipsFile.close(); // Explicitly close
+    mipsFile.close(); 
 }
 
 int main()
 {
     ifstream infile("testfile.txt");
-    if (!infile.is_open()) { // Check if file opened
+    if (!infile.is_open()) { 
         cerr << "Error: Could not open testfile.txt" << endl;
         return 1;
     }
@@ -2390,23 +2315,16 @@ int main()
     buffer << infile.rdbuf();
     infile.close();
 
-    enterScope(true); // Global scope, also acts as a "function frame" for global initializers if any were dynamic
+    enterScope(true); 
     tokenize(buffer.str());
     CompUnit();
-    MIPS(); // Generate MIPS code
+    MIPS(); 
 
-    // Check if mips.txt was created (optional, MIPS() handles its own error)
     ifstream mips_check("mips.txt");
     if (!mips_check.good()) {
         cerr << "Error: mips.txt was not generated or is not accessible after MIPS()." << endl;
-        // return 1; // Don't return here if MIPS() already reported error
     }
     mips_check.close();
     
-    // The system call to MARS is usually done outside the compiler itself,
-    // but if it was part of the original 111.cpp requirement, it can be kept.
-    // For now, let's assume it's separate.
-    // system("java -jar mars.jar nc mips.txt < input.txt > output.txt"); // Example from reference
-
     return 0;
 }
